@@ -1,0 +1,24 @@
+# halogen-admin is used to create packages
+# Copyright (C) 2015 Ilari Jääskeläinen
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+source /etc/halogen.conf
+
+sqlite3 $lib_path/remote.db "DROP TABLE base_packages"
+sqlite3 $lib_path/remote.db "CREATE TABLE base_packages (id INTEGER PRIMARY KEY, furl TEXT, conf TEXT)"
+sqlite3 $lib_path/remote.db "INSERT INTO base_packages (furl, conf) VALUES ('http://ftp.funet.fi/pub/linux/mirrors/ftp.gnu.org/pub/gnu/binutils/binutils-2.25.tar.gz', '--prefix=/tools --with-sysroot=/mnt/lfs --with-lib-path=/tools/lib --target=x86_64-linux-gnu --disable-nls --disable-werror')";
+
+# INSERT INTO base_packages (furl, conf) VALUES ('', '') # use sqlite3 to manipulate package manager databases.
+pkg_file[1]="http://www.nic.funet.fi/pub/gnu/ftp.gnu.org/pub/gnu/gcc/gcc-4.9.2/gcc-4.9.2.tar.gz"
+pkg_conf[1]="--prefix=/mnt/lfs/usr --with-sysroot=/tools --with-lib-path=/tools/lib --target=x86_64-amd-linux-gnu --disable-nls --disable-werror"/

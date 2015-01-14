@@ -1,0 +1,89 @@
+# halogen is a simple source based package manager written in bash
+# Copyright (C) 2015 Ilari Jääskeläinen
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.ddd
+source /etc/halogen.conf
+
+# Unorthodox way to check package manager dependancies.
+hash sqlite3 2> /dev/null || { echo >&2 "sqlite3 is required to run halogen-bootstrap. Aborting."; exit 1; }
+
+# Enter working directory.
+mkdir $tmp_path &> /dev/null
+cd $tmp_path
+
+case $1 in
+  update)
+    exit ;;
+  install)
+    query=`sqlite3 $lib_path/remote.db "SELECT * FROM base_packages;"`
+    for row in $query; do
+      echo $row
+      Id=`echo $row | awk '{split($0,a,"|"); print a[1]}'`
+      Furl=`echo $row | awk '{split($0,a,"|"); print a[2]}'`
+      Conf=`echo $row | awk '{split($0,a,"|"); print a[3]}'`
+      echo $Conf
+      exit 0
+      ## RECODE THIS PIECE OF ***
+      filename="${Furl##*/}"
+      pkgname="${filename%.*.*}"
+      echo $pkgname
+      #pkgname="$(echo ${pkg_file[$i]} | sed 's/\.[^.]*$//')" # Keep for reference.
+      rm -Rf $pkgname > /dev/null
+      rm -Rf $pkgname-build > /dev/null
+      echo "Downloading file $pkgname ..."
+      wget -nc $Furl
+      echo "Extracting archives of $pkgname ..."
+      uunzip $filename > /dev/null
+      mkdir $pkgname-build
+      cd $pkgname-build
+      echo "Configuring archives of $pkgname ..."
+      ../$pkgname/configure ${pkg_conf[0]} CFLAGS=${pkg_opti[0]} CXXFLAGS=${pkg_opti[0]}
+      echo "Building package of $pkgname ..."
+      make CFLAGS=${pkg_opti[0]} CXXFLAGS=${pkg_opti[0]}
+      echo Testing package $pkgname ...
+      make check
+      read -p "Check build for errors and terminate before installing the package if necessary. Press enter to continue."
+      echo "Installing package $pkgname ..."
+      sudo make install
+      sqlite 
+      cd /tmp/halogen
+    done
+    exit ;;
+  resume)
+    # resume where left
+    exit ;;
+  *)
+    exit ;;
+esac
+
+# fetch
+# pre
+# conf
+# build
+# check
+# install
+# post
+
+# package database is here for now
+#sqlite3 /home/nafac/halogen/var/lib/halogen/remote.db "INSERT INTO base_packages (furl, conf) VALUES ('http://ftp.funet.fi/pub/linux/mirrors/ftp.gnu.org/pub/gnu/binutils/binutils-2.25.tar.gz', '--prefix=/tools --with-sysroot=/mnt/lfs --with-lib-path=/tools/lib --target=x86_64-linux-gnu --disable-nls --disable-werror')";
+
+# INSERT INTO base_packages (furl, conf) VALUES ('', '') # use sqlite3 to manipulate package manager databases.
+pkg_file[1]="http://www.nic.funet.fi/pub/gnu/ftp.gnu.org/pub/gnu/gcc/gcc-4.9.2/gcc-4.9.2.tar.gz"
+pkg_conf[1]="--prefix=/mnt/lfs/usr --with-sysroot=/tools --with-lib-path=/tools/lib --target=x86_64-amd-linux-gnu --disable-nls --disable-werror"
+
+# predefined optimization levels
+OPTIMIZE_0="-O1 -pipe"                                 # Failsafe; Prefer default.
+OPTIMIZE_1="-O1 -march=amdfam10 -mcx16 -mpopcnt -pipe" # The toolchain and other critical parts.
+OPTIMIZE_2="-O2 -march=amdfam10 -mcx16 -mpopcnt -pipe" # 
+OPTIMIZE_3="-O3 -march=amdfam10 -mcx16 -mpopcnt -pipe" # 

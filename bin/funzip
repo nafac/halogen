@@ -1,0 +1,7 @@
+# Universal UNZIP by Ilari Jääskeläinen. GPLv3
+filename=$1
+extension="${filename##*.}"
+if [[ "$extension" == gz ]]
+  then tar -xzvf $filename; fi
+if [[ "$extension" == bz2 ]]
+  then tar -xjvf $filename; fi
