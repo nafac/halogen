@@ -1,7 +1,13 @@
-# Universal UNZIP by Ilari Jääskeläinen. GPLv3
+# UniZIP by Ilari Jääskeläinen. GPLv3
 filename=$1
-extension="${filename##*.}"
+extension="${filename##*.}" 
 if [[ "$extension" == gz ]]
-  then tar -xzvf $filename; fi
+  then tar -xzvf $filename
+  exit 0;
+fi
 if [[ "$extension" == bz2 ]]
-  then tar -xjvf $filename; fi
+  then tar -xjvf $filename
+  exit 0;
+fi
+tar -xzvf $filename > $filename
+tar -xjvf $filename > $filename

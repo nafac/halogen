@@ -1,5 +1,26 @@
 source /etc/halogen.conf
 
+## References; semi-documented and tested
+#commit=`sqlite3 $lib_path/remote.db "SELECT * FROM base_packages WHERE 1"`;
+#pkgname="$(echo ${pkg_file[$i]} | sed 's/\.[^.]*$//')"
+#echo $Id / $Furl / $Conf
+#Furl=`echo $row | awk '{split($0,a,"|"); print a[2]}' # split
+#row=$(echo "${row}"|tr '\n' ' ') # renove newlines.
+#query="SELECT conf FROM base_packages WHERE id=$Id" # SQL..
+#Conf=`sqlite3 $lib_path/remote.db "$query"` # Click, click, yum, yum.
+## References; undocumented
+      #tr '\n' ' ' < ${$row}
+      #data="$(echo ${row} | sed ':a;N;$!ba;s/\n/ /g')"
+      #echo sed ':a;N;$!ba;s/\n/ /g'
+      #data=$(echo $row | tr "|" " ")
+      #IFS='|' read -a data <<< "$row"
+      #echo ${data[0]}
+      #echo ${data[1]}
+      #echo ${data[2]}
+      #Id=`echo $row | awk '{split($0,a,"|"); print a[1]}'`
+      #query="SELECT status FROM base_packages WHERE id=$Id" # SQL..
+      #Status=`sqlite3 $lib_path/remote.db "$query"` # Click, click, yum, yum.
+
 # list of stages and packages
 # bootstrap
 PKGLIST_0="
@@ -22,7 +43,6 @@ PKGLIST_3="
 "
 
 ## Build a temporary system.
-'''
 pkg_pre binutils-2.25
 ../binutils-2.25/configure    \
     --with-sysroot=/          \
@@ -159,4 +179,3 @@ pkg_pre autogen-5.18.4
     CXXFLAGS="$OPTIMIZE_1"
 make CFLAGS="$OPTIMIZE_1" CXXFLAGS="$OPTIMIZE_1"
 pkg_post autogen-5.18.4
-'''

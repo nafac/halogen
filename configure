@@ -1,2 +1,5 @@
 #!/bin/bash
-echo "sqlite3 found .."
+
+# TODO check em'
+echo "please install following packages: 'sqlite3 build-essential'"
+echo "halogen build-base-debian requires additional packages: 'apt-build apt-scr packages'"

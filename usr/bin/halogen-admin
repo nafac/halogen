@@ -15,10 +15,21 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 source /etc/halogen.conf
 
-sqlite3 $lib_path/remote.db "DROP TABLE base_packages"
-sqlite3 $lib_path/remote.db "CREATE TABLE base_packages (id INTEGER PRIMARY KEY, furl TEXT, conf TEXT)"
-sqlite3 $lib_path/remote.db "INSERT INTO base_packages (furl, conf) VALUES ('http://ftp.funet.fi/pub/linux/mirrors/ftp.gnu.org/pub/gnu/binutils/binutils-2.25.tar.gz', '--prefix=/tools --with-sysroot=/mnt/lfs --with-lib-path=/tools/lib --target=x86_64-linux-gnu --disable-nls --disable-werror')";
+# TODO: remove status and move it to package_installed # much, much to rewrite onto these dbs'..
+sqlite3 $lib_path/halogen.db "CREATE TABLE IF NOT EXISTS packages_base (id INTEGER PRIMARY KEY, name TEXT UNIQUE)";
+sqlite3 $lib_path/halogen.db "INSERT OR IGNORE INTO packages_base (name) VALUES ('binutils-2.25-pass_1')";
+sqlite3 $lib_path/halogen.db "INSERT OR IGNORE INTO packages_base (name) VALUES ('gcc-4.9.2-pass_1')";
 
-# INSERT INTO base_packages (furl, conf) VALUES ('', '') # use sqlite3 to manipulate package manager databases.
-pkg_file[1]="http://www.nic.funet.fi/pub/gnu/ftp.gnu.org/pub/gnu/gcc/gcc-4.9.2/gcc-4.9.2.tar.gz"
-pkg_conf[1]="--prefix=/mnt/lfs/usr --with-sysroot=/tools --with-lib-path=/tools/lib --target=x86_64-amd-linux-gnu --disable-nls --disable-werror"/
+# build debian gentoo style..
+sqlite3 $lib_path/halogen.db "DROP TABLE IF EXISTS packages_base_debian";
+sqlite3 $lib_path/halogen.db "CREATE TABLE packages_base_debian (id INTEGER PRIMARY KEY, packages TEXT, opt INTEGER)";
+sqlite3 $lib_path/halogen.db "INSERT INTO packages_base_debian (packages, opt) VALUES ('tar gzip bzip2 libzip zlib', 3)";
+sqlite3 $lib_path/halogen.db "INSERT INTO packages_base_debian (packages, opt) VALUES ('autoconf m4 flex bison e2fsprogs util-linux bash dash diffutils dpkg findutils grep', 2)";
+
+# installed packages
+sqlite3 $lib_path/halogen.db "CREATE TABLE IF NOT EXISTS packages_installed (package TEXT UNIQUE)";
+
+#sqlite3 $lib_path/remote.db "DROP TABLE base_packages"
+#sqlite3 $lib_path/remote.db "CREATE TABLE base_packages (id INTEGER PRIMARY KEY, furl TEXT UNIQUE, conf TEXT)"
+#sqlite3 $lib_path/remote.db "INSERT INTO base_packages (furl, conf) VALUES ('ftp.funet.fi/pub/linux/mirrors/ftp.gnu.org/pub/gnu/binutils/binutils-2.25.tar.gz', '--prefix=/tools --with-sysroot=/mnt/lfs --with-lib-path=/tools/lib --target=x86_64-linux-gnu --disable-nls --disable-werror')";
+#sqlite3 $lib_path/remote.db "INSERT INTO base_packages (furl, conf) VALUES ('www.nic.funet.fi/pub/gnu/ftp.gnu.org/pub/gnu/gcc/gcc-4.9.2/gcc-4.9.2.tar.gz', '--target=x86_64-linux-gnu --prefix=/tools --with-sysroot=/mnt/lfs --with-newlib --without-headers- -with-local-prefix=/tools --with-native-system-header-dir=/tools/include --disable-nls --disable-shared --disable-multilib --disable-decimal-float --disable-threads --disable-libatomic --disable-libgomp --disable-libitm --disable-libquadmath --disable-libsanitizer --disable-libssp --disable-libvtv --disable-libcilkrts --disable-libstdc++-v3 --enable-languages=c,c++')";

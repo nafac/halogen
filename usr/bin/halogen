@@ -1,3 +1,5 @@
+#!/bin/bash
+# 
 # halogen is a simple source based package manager written in bash
 # Copyright (C) 2015 Ilari Jääskeläinen
 # 
@@ -22,69 +24,188 @@ hash sqlite3 2> /dev/null || { echo >&2 "sqlite3 is required to run halogen-boot
 mkdir $tmp_path &> /dev/null
 cd $tmp_path
 
+# Load functions at the beginning of the script.
+function _fetch_source {
+  return 0
+}
+# pre
+# conf
+function _make_build {
+  echo "configuring .."
+  ./configure CFLAGS="${CFLAGS[$_opti]}" CXXFLAGS="${CXXFLAGS[$_opti]}"
+  if [ $? -eq 0 ] ; then
+    return 0
+  else
+    echo "failed!"
+    return 1
+  fi
+  echo "building .."
+  make CFLAGS="${CFLAGS[$_opti]}" CXXFLAGS="${CXXFLAGS[$_opti]}"
+  if [ $? -eq 0 ] ; then
+    return 0
+  else
+    echo "failed!"
+    return 1
+  fi
+}
+function _make_check {
+  echo "Testing package .."
+  make check
+  if [ $? -eq 0 ] ; then
+    return 0
+  else
+    echo "failed!"
+    return 1
+  fi
+  sudo make check
+  if [ $? -eq 0 ] ; then
+    return 0
+  else
+    echo "failed!"
+    return 1
+  fi
+}
+function _make_install {
+  echo "Installing package .."
+  sudo make install
+  if [ $? -eq 0 ] ; then
+    return 0
+  else
+    echo "failed!"
+    return 1
+  fi
+}
+# post
+
 case $1 in
   update)
     exit ;;
   build-base)
-    query=`sqlite3 $lib_path/remote.db "SELECT * FROM base_packages;"`
-    echo $query
-    for row in $query; do
-      echo $row
-      Id=`echo $row | awk '{split($0,a,"|"); print a[1]}'`
-      Furl=`echo $row | awk '{split($0,a,"|"); print a[2]}'`
-      Conf=`echo $row | awk '{split($0,a,"|"); print a[3]}'`
+    query="SELECT * FROM packages_base WHERE 1"
+    commit=`sqlite3 $lib_path/halogen.db "$query"`;
+    
+    echo $commit
+    
+    for row in $commit; do
+      if [ -z "$row" ]; then
+        echo "Halogen is (propably) complete!"
+        exit 0
+      fi
+      
+      export pkg_name=`echo $row | awk '{split($0,a,"|"); print a[2]}'`
+      export pkg_status=`echo $row | awk '{split($0,a,"|"); print a[3]}'`
+      
+      source $lib_path/pkg/$pkg_name
+      
+      echo $pkg_name
+      echo $pkg_status
+      
+      if [ "$pkg_status" == installed ]; then
+        echo "Package $pkg_name is already installed, skipping." 
+        continue
+      fi
+     
+      rm -Rf "${pkg_name}"
+      rm -Rf "${pkg_name}-build"
+      
+      echo "Downloading package $pkg_name ..."
+      wget -nc -q -O $pkg_name $furl
+      
+      echo "Extracting package $pkg_name ..."
+      uunzip ${pkg_name}
+      mkdir "${pkg_name}-build"
+      cd "${pkg_name}-build"
+      
+      continue
+      
+      echo "Patching ..."
+      # pre hook
+      
+      echo "Configuring archives of $pkg_name ..."
       echo $Conf
-      exit 0
-      ## RECODE THIS PIECE OF ***
-      filename="${Furl##*/}"
-      pkgname="${filename%.*.*}"
-      echo $pkgname
-      #pkgname="$(echo ${pkg_file[$i]} | sed 's/\.[^.]*$//')" # Keep for reference.
-      rm -Rf $pkgname > /dev/null
-      rm -Rf $pkgname-build > /dev/null
-      echo "Downloading file $pkgname ..."
-      wget -nc $Furl
-      echo "Extracting archives of $pkgname ..."
-      uunzip $filename > /dev/null
-      mkdir $pkgname-build
-      cd $pkgname-build
-      echo "Configuring archives of $pkgname ..."
-      ../$pkgname/configure ${pkg_conf[0]} CFLAGS=${pkg_opti[0]} CXXFLAGS=${pkg_opti[0]}
-      echo "Building package of $pkgname ..."
-      make CFLAGS=${pkg_opti[0]} CXXFLAGS=${pkg_opti[0]}
-      echo Testing package $pkgname ...
-      make check
-      read -p "Check build for errors and terminate before installing the package if necessary. Press enter to continue."
-      echo "Installing package $pkgname ..."
-      sudo make install
-      sqlite 
+      ../$pkg_name/configure $Conf CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS"
+      
+      echo "Building package of $pkg_name ..."
+      echo "CFLAGS=$CFLAGS CXXFLAGS=$CXXFLAGS"
+      make CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS"
+      
+      if [ "$_make_check" -eq "1" ]; then
+	return 1
+      fi
+      
+      $Id=$Id+1
+      if [ $? -eq 0 ] ; then
+        echo "Installing package $pkg_name ..."
+        sudo make install
+        if [ $? -eq 0 ] ; then
+          sqlite3 $lib_path/remote.db "UPDATE base_packages SET status = 'Installed' WHERE id = $Id";
+        else
+          echo "$pkg_name - make install failed!"
+          exit 1
+        fi
+      else
+        echo "$pkg_name - make check failed!"
+        exit 1
+      fi
+      
       cd /tmp/halogen
     done
-    exit ;;
+    exit 0;;
+  optimize-debian)
+    query="SELECT packages FROM packages_base_debian WHERE 1"
+    commit=`sqlite3 $lib_path/halogen.db "$query"`;
+    
+    IFS=$'\n'
+    _lines=($commit)
+    
+    for row in ${_lines[@]}; do 
+      query="SELECT opt FROM packages_base_debian WHERE packages='$row'"
+      export _opti=`sqlite3 $lib_path/halogen.db "$query"`;
+      
+      IFS=$' '
+      _packages=($row)
+
+      for _package in ${_packages[@]}; do
+        cd $tmp_path
+        
+        _query="SELECT EXISTS(SELECT 1 FROM packages_installed WHERE package = '$_package' LIMIT 1);"
+        _installed=`sqlite3 $lib_path/halogen.db "$_query"`;
+        
+        echo "package = $_package - installed = $_installed - optimize = $_opti"
+        
+        if [ "$_installed" -eq "1" ]; then
+          echo "$_package is already installed."
+          continue
+        fi
+        
+        echo "fetching $_package .."
+        apt-src install $_package
+        
+        unset $IFS
+        cd ${tmp_path}/${_package}*
+        
+        if _make_build $_opti; then
+          echo
+        else
+          continue
+        fi
+        if _make_check; then
+          echo
+        else
+          continue
+        fi
+        if _make_install; then
+          sqlite3 $lib_path/halogen.db "INSERT INTO packages_installed (package) VALUES ('$_package')";
+        else
+          continue
+        fi
+        continue
+      done
+    done
+    exit 0 ;;
   resume)
     # resume where left
     exit ;;
   *)
     exit ;;
 esac
-
-# fetch
-# pre
-# conf
-# build
-# check
-# install
-# post
-
-# package database is here for now
-#sqlite3 /home/nafac/halogen/var/lib/halogen/remote.db "INSERT INTO base_packages (furl, conf) VALUES ('http://ftp.funet.fi/pub/linux/mirrors/ftp.gnu.org/pub/gnu/binutils/binutils-2.25.tar.gz', '--prefix=/tools --with-sysroot=/mnt/lfs --with-lib-path=/tools/lib --target=x86_64-linux-gnu --disable-nls --disable-werror')";
-
-# INSERT INTO base_packages (furl, conf) VALUES ('', '') # use sqlite3 to manipulate package manager databases.
-pkg_file[1]="http://www.nic.funet.fi/pub/gnu/ftp.gnu.org/pub/gnu/gcc/gcc-4.9.2/gcc-4.9.2.tar.gz"
-pkg_conf[1]="--prefix=/mnt/lfs/usr --with-sysroot=/tools --with-lib-path=/tools/lib --target=x86_64-amd-linux-gnu --disable-nls --disable-werror"
-
-# predefined optimization levels
-OPTIMIZE_0="-O1 -pipe"                                 # Failsafe; Prefer default.
-OPTIMIZE_1="-O1 -march=amdfam10 -mcx16 -mpopcnt -pipe" # The toolchain and other critical parts.
-OPTIMIZE_2="-O2 -march=amdfam10 -mcx16 -mpopcnt -pipe" # 
-OPTIMIZE_3="-O3 -march=amdfam10 -mcx16 -mpopcnt -pipe" # 
