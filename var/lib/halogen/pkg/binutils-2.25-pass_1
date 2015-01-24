@@ -1,0 +1,13 @@
+#!/bin/bash
+furl=ftp.funet.fi/pub/linux/mirrors/ftp.gnu.org/pub/gnu/binutils/binutils-2.25.tar.gz
+
+function _pkg_pre {
+  echo 
+}
+function _pkg_configure {
+  ../binutils-2.25/configure --prefix=/tools --with-sysroot=/mnt/lfs --with-lib-path=/tools/lib --target=x86_64-linux-gnu
+--disable-nls --disable-werror
+}
+function _pkg_post {
+  echo 
+}
