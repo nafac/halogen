@@ -17,6 +17,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.ddd
 source /etc/halogen.conf
 
+# definitions
+BUILD_FLAGS='CFLAGS="${CFLAGS}" CXXFLAGS="${CXXFLAGS}" LDFLAGS="${LDFLAGS}"'
+SQLITE_REMOTE='sqlite3 $lib_path/sqlite.remote'
+SQLITE_LOCAL='sqlite3 $lib_path/sqlite.local'
+
 # Unorthodox way to check package manager dependancies.
 hash sqlite3 2> /dev/null || { echo >&2 "sqlite3 is required to run halogen. Aborting."; exit 1; }
 hash wget 2> /dev/null || { echo >&2 "wget is required to run halogen. Aborting."; exit 1; }
@@ -27,14 +32,12 @@ mkdir $tmp_path &> /dev/null
 cd $tmp_path
 
 # Load functions at the beginning of the script.
-function _fetch_source {
+function _wget_source {
   return 0
 }
-# pre
-# conf
 function _make_build {
   echo "configuring .."
-  ./configure CFLAGS="${CFLAGS[$_opti]}" CXXFLAGS="${CXXFLAGS[$_opti]}"
+  ./configure ${BUILD_FLAGS}
   if [ $? -eq 0 ] ; then
     return 0
   else
@@ -42,7 +45,7 @@ function _make_build {
     return 1
   fi
   echo "building .."
-  make CFLAGS="${CFLAGS[$_opti]}" CXXFLAGS="${CXXFLAGS[$_opti]}"
+  make -j5 ${BUILD_FLAGS}
   if [ $? -eq 0 ] ; then
     return 0
   else
@@ -52,7 +55,7 @@ function _make_build {
 }
 function _make_check {
   echo "Testing package .."
-  make check
+  make -j5 check
   if [ $? -eq 0 ] ; then
     return 0
   else
@@ -85,129 +88,130 @@ case $1 in
     exit ;;
   bootstrap)
 	exit ;;
-  build-base)
-    query="SELECT * FROM packages_base WHERE 1"
-    commit=`sqlite3 $lib_path/halogen.db "$query"`;
-    
-    echo $commit
-    
-    for row in $commit; do
-      if [ -z "$row" ]; then
-        echo "Halogen is (propably) complete!"
-        exit 0
-      fi
-      
-      export pkg_name=`echo $row | awk '{split($0,a,"|"); print a[2]}'`
-      export pkg_status=`echo $row | awk '{split($0,a,"|"); print a[3]}'`
-      
-      source $lib_path/pkg/$pkg_name
-      
-      echo $pkg_name
-      echo $pkg_status
-      
-      if [ "$pkg_status" == installed ]; then
-        echo "Package $pkg_name is already installed, skipping." 
-        continue
-      fi
-     
-      rm -Rf "${pkg_name}"
-      rm -Rf "${pkg_name}-build"
-      
-      echo "Downloading package $pkg_name ..."
-      wget -nc -q -O $pkg_name $furl
-      
-      echo "Extracting package $pkg_name ..."
-      uunzip ${pkg_name}
-      mkdir "${pkg_name}-build"
-      cd "${pkg_name}-build"
-      
-      continue
-      
-      echo "Patching ..."
-      # pre hook
-      
-      echo "Configuring archives of $pkg_name ..."
-      echo $Conf
-      ../$pkg_name/configure $Conf CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS"
-      
-      echo "Building package of $pkg_name ..."
-      echo "CFLAGS=$CFLAGS CXXFLAGS=$CXXFLAGS"
-      make CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS"
-      
-      if [ "$_make_check" -eq "1" ]; then
-	return 1
-      fi
-      
-      $Id=$Id+1
-      if [ $? -eq 0 ] ; then
-        echo "Installing package $pkg_name ..."
-        sudo make install
-        if [ $? -eq 0 ] ; then
-          sqlite3 $lib_path/remote.db "UPDATE base_packages SET status = 'Installed' WHERE id = $Id";
-        else
-          echo "$pkg_name - make install failed!"
-          exit 1
-        fi
-      else
-        echo "$pkg_name - make check failed!"
-        exit 1
-      fi
-      
-      cd /tmp/halogen
-    done
-    exit 0;;
-  optimize-debian)
-    query="SELECT packages FROM packages_base_debian WHERE 1"
-    commit=`sqlite3 $lib_path/halogen.db "$query"`;
-    
-    IFS=$'\n'
-    _lines=($commit)
-    
-    for row in ${_lines[@]}; do 
-      query="SELECT opt FROM packages_base_debian WHERE packages='$row'"
-      export _opti=`sqlite3 $lib_path/halogen.db "$query"`;
-      
-      IFS=$' '
-      _packages=($row)
 
-      for _package in ${_packages[@]}; do
-        cd $tmp_path
+  # build-base)
+    # query="SELECT * FROM packages_base WHERE 1"
+    # commit=`sqlite3 $lib_path/halogen.db "$query"`;
+    
+    # echo $commit
+    
+    # for row in $commit; do
+      # if [ -z "$row" ]; then
+        # echo "Halogen is (propably) complete!"
+        # exit 0
+      # fi
+      
+      # export pkg_name=`echo $row | awk '{split($0,a,"|"); print a[2]}'`
+      # export pkg_status=`echo $row | awk '{split($0,a,"|"); print a[3]}'`
+      
+      # source $lib_path/pkg/$pkg_name
+      
+      # echo $pkg_name
+      # echo $pkg_status
+      
+      # if [ "$pkg_status" == installed ]; then
+        # echo "Package $pkg_name is already installed, skipping." 
+        # continue
+      # fi
+     
+      # rm -Rf "${pkg_name}"
+      # rm -Rf "${pkg_name}-build"
+      
+      # echo "Downloading package $pkg_name ..."
+      # wget -nc -q -O $pkg_name $furl
+      
+      # echo "Extracting package $pkg_name ..."
+      # halogenzip ${pkg_name}
+      # mkdir "${pkg_name}-build"
+      # cd "${pkg_name}-build"
+      
+      # continue
+      
+      # echo "Patching ..."
+      # # pre hook
+      
+      # echo "Configuring archives of $pkg_name ..."
+      # echo $Conf
+      # ../$pkg_name/configure $Conf CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS"
+      
+      # echo "Building package of $pkg_name ..."
+      # echo "CFLAGS=$CFLAGS CXXFLAGS=$CXXFLAGS"
+      # make CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS"
+      
+      # if [ "$_make_check" -eq "1" ]; then
+	# return 1
+      # fi
+      
+      # $Id=$Id+1
+      # if [ $? -eq 0 ] ; then
+        # echo "Installing package $pkg_name ..."
+        # sudo make install
+        # if [ $? -eq 0 ] ; then
+          # sqlite3 $lib_path/remote.db "UPDATE base_packages SET status = 'Installed' WHERE id = $Id";
+        # else
+          # echo "$pkg_name - make install failed!"
+          # exit 1
+        # fi
+      # else
+        # echo "$pkg_name - make check failed!"
+        # exit 1
+      # fi
+      
+      # cd /tmp/halogen
+    # done
+    # exit 0;;
+  # optimize-debian)
+    # query="SELECT packages FROM packages_base_debian WHERE 1"
+    # commit=`sqlite3 $lib_path/halogen.db "$query"`;
+    
+    # IFS=$'\n'
+    # _lines=($commit)
+    
+    # for row in ${_lines[@]}; do 
+      # query="SELECT opt FROM packages_base_debian WHERE packages='$row'"
+      # export _opti=`sqlite3 $lib_path/halogen.db "$query"`;
+      
+      # IFS=$' '
+      # _packages=($row)
+
+      # for _package in ${_packages[@]}; do
+        # cd $tmp_path
         
-        _query="SELECT EXISTS(SELECT 1 FROM packages_installed WHERE package = '$_package' LIMIT 1);"
-        _installed=`sqlite3 $lib_path/halogen.db "$_query"`;
+        # _query="SELECT EXISTS(SELECT 1 FROM packages_installed WHERE package = '$_package' LIMIT 1);"
+        # _installed=`sqlite3 $lib_path/halogen.db "$_query"`;
         
-        echo "package = $_package - installed = $_installed - optimize = $_opti"
+        # echo "package = $_package - installed = $_installed - optimize = $_opti"
         
-        if [ "$_installed" -eq "1" ]; then
-          echo "$_package is already installed."
-          continue
-        fi
+        # if [ "$_installed" -eq "1" ]; then
+          # echo "$_package is already installed."
+          # continue
+        # fi
         
-        echo "fetching $_package .."
-        apt-src install $_package
+        # echo "fetching $_package .."
+        # apt-src install $_package
         
-        unset $IFS
-        cd ${tmp_path}/${_package}*
+        # unset $IFS
+        # cd ${tmp_path}/${_package}*
         
-        if _make_build $_opti; then
-          echo
-        else
-          continue
-        fi
-        if _make_check; then
-          echo
-        else
-          continue
-        fi
-        if _make_install; then
-          sqlite3 $lib_path/halogen.db "INSERT INTO packages_installed (package) VALUES ('$_package')";
-        else
-          continue
-        fi
-        continue
-      done
-    done
-    exit 0 ;;
+        # if _make_build $_opti; then
+          # echo
+        # else
+          # continue
+        # fi
+        # if _make_check; then
+          # echo
+        # else
+          # continue
+        # fi
+        # if _make_install; then
+          # sqlite3 $lib_path/halogen.db "INSERT INTO packages_installed (package) VALUES ('$_package')";
+        # else
+          # continue
+        # fi
+        # continue
+      # done
+    # done
+    # exit 0 ;;
   resume)
     # resume where left
     exit ;;
