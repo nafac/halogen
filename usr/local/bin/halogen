@@ -185,7 +185,7 @@ case $1 in
 	echo "Updating scripts .."
 	wget -q -O /usr/local/bin/halogen https://raw.githubusercontent.com/nafac/halogen/master/usr/local/bin/halogen
 	chmod +x /usr/local/bin/halogen
-	mkdir /var/lib/halogen
+	mkdir /var/lib/halogen &> /dev/null
 	chmod -R 1777 /var/lib/halogen
 	echo "Updating package database .."
 	wget -q -O -O /var/lib/halogen/sqlite.remote https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote
@@ -203,12 +203,12 @@ case $1 in
 	source /home/lfs/.bash_profile
 	export MAKEFLAGS='-j5'
 	# build
-	query = "SELECT * FROM pkgs WHERE 1"
-	db_cached_pkgs = `${SQLITE_REMOTE} ${query}`
-	for row in ${db_cached_pkgs}; do
+	db_cached_queries_pkgs= "SELECT * FROM pkgs WHERE 1"
+	db_cached_results_pkgs=`sqlite3 ${REMOTE_DB} ${db_cached_queries_pkgs}`;
+	for row in ${db_cached_results_pkgs}; do
 		echo $row;
 		if [ -z "$row" ]; then
-			echo "Halogen is (propably) complete!"
+			echo "Halogen package manager is complete!"
 			exit 0
 		fi
 	done
