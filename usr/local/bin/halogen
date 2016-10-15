@@ -185,7 +185,7 @@ case $1 in
 	echo "Updating scripts .."
 	wget -q -O /usr/local/bin/halogen https://raw.githubusercontent.com/nafac/halogen/master/usr/local/bin/halogen
 	chmod +x /usr/local/bin/halogen
-	mkdir /var/lib/halogen
+	mkdir /var/lib/halogen &> /dev/null
 	chmod -R 1777 /var/lib/halogen
 	echo "Updating package database .."
 	wget -q -O -O /var/lib/halogen/sqlite.remote https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote
