@@ -8,7 +8,7 @@ install:
 	chmod +x /usr/local/bin/halogen
 	chmod +x /usr/local/bin/halogen-admin
 	mkdir -p /tmp/halogen
-	cp -e tmp/halogen/* /tmp/halogen/.
+	cp -R tmp/halogen /tmp 
 	mkdir -p /var/lib/halogen/pkg
 	cp -n var/lib/halogen/sqlite.local /var/lib/halogen/sqlite.local
 	cp -n var/lib/halogen/sqlite.remote /var/lib/halogen/sqlite.remote

@@ -170,35 +170,44 @@ function _lfs_prepare_disks {
 	passwd lfs								# change user password
 	chown -v lfs $LFS/tools					# change temp folder permissions
 	chown -v lfs $LFS/sources				# change temp folder permissions
-	su -c "/usr/local/bin/halogen bootstrap-lfs" lfs	# change user and continue bootstrap
+	echo "To continue, please run:"
+	echo "su -l lfs"									#
+	echo "su -c '/usr/local/bin/halogen update' root"	#
+	echo "/usr/local/bin/halogen bootstrap-lfs"			#
 }
 
 case $1 in
   update)
-	wget https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote /var/lib/halogen/sqlite.remote
+	if [ "$EUID" -ne 0 ]; then
+	   echo "please run halogen update as root"
+	   exit
+	fi
+	wget -q https://github.com/nafac/halogen/raw/master/usr/local/bin/halogen -O /usr/local/bin/halogen
+	chmod +x /usr/local/bin/halogen
+	wget -q https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote -O /var/lib/halogen/sqlite.remote
     exit ;;
-  bootstrap)
+  bootstrap) 
 	_lfs_check_bootstrap_environment;
 	_lfs_prepare_disks;
 	exit ;;
   bootstrap-lfs)
 	# configure environment
-	rm /home/lfs/.bash_profile																		# remove existing .bash_profile
-	echo "exec env -i HOME=$HOME TERM=$TERM PS1='\u:\w\$ ' /bin/bash" >> /home/lfs/.bash_profile	# create new .bash_profile
-	rm /home/lfs/.bashrc																					# create new shell variables
-	echo "set +h; umask 022; LFS=/mnt/lfs; LC_ALL=POSIX; LFS_TGT=$(uname -m)-lfs-linux-gnu; PATH=/tools/bin:/bin:/usr/bin; export LFS LC_ALL LFS_TGT PATH" >> /home/lfs/.bashrc
+	rm ~/.bashrc
+	rm ~/.bash_profile
+	cp -f /tmp/halogen/.bashrc ~/.bashrc
+	cp -f /tmp/halogen/.bash_profile ~/.bash_profile
 	source /home/lfs/.bash_profile
 	export MAKEFLAGS='-j5'
 	# build
-	# query = "SELECT * FROM pkgs WHERE 1"
-	# db_cached_pkgs = `${SQLITE_REMOTE} ${query}`
-	# for row in ${db_cached_pkgs}; do
-		# echo $row;
-		# if [ -z "$row" ]; then
-			# echo "Halogen is (propably) complete!"
-			# exit 0
-		# fi
-	# done
+	query = "SELECT * FROM pkgs WHERE 1"
+	db_cached_pkgs = `${SQLITE_REMOTE} ${query}`
+	for row in ${db_cached_pkgs}; do
+		echo $row;
+		if [ -z "$row" ]; then
+			echo "Halogen is (propably) complete!"
+			exit 0
+		fi
+	done
 	exit ;;
 
   # build-base)
