@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
  
 # TODO check em'
 echo "please install following packages: 'sqlite3 build-essential'"

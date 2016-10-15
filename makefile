@@ -1,4 +1,4 @@
-install:
+﻿install:
 	mkdir -p /usr/local/bin
 	cp usr/local/bin/halogenzip /usr/local/bin/halogenzip
 	chmod +x /usr/local/bin/halogenzip
