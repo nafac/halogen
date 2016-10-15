@@ -204,7 +204,7 @@ case $1 in
 	export MAKEFLAGS='-j5'
 	# build
 	db_cached_queries_pkgs= "SELECT * FROM pkgs WHERE 1"
-	db_cached_results_pkgs=`sqlite3 ${REMOTE_DB} ${db_cached_queries_pkgs}`;
+	db_cached_results_pkgs=`sqlite3 ${REMOTE_DB} "${db_cached_queries_pkgs}"`;
 	for row in ${db_cached_results_pkgs}; do
 		echo $row;
 		if [ -z "$row" ]; then

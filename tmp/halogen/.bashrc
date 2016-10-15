@@ -1,4 +1,4 @@
-﻿set +h
+set +h
 umask 022
 LFS=/mnt/lfs
 LC_ALL=POSIX
