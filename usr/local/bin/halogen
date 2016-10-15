@@ -182,9 +182,9 @@ case $1 in
 	   echo "please run halogen update as root"
 	   exit
 	fi
-	wget https://github.com/nafac/halogen/raw/master/usr/local/bin/halogen -O /usr/local/bin/halogen
+	wget -q https://github.com/nafac/halogen/raw/master/usr/local/bin/halogen -O /usr/local/bin/halogen
 	chmod +x /usr/local/bin/halogen
-	wget https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote -O /var/lib/halogen/sqlite.remote
+	wget -q https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote -O /var/lib/halogen/sqlite.remote
     exit ;;
   bootstrap) 
 	_lfs_check_bootstrap_environment;
@@ -198,21 +198,23 @@ case $1 in
 	cp -f /tmp/halogen/.bash_profile ~/.bash_profile
 	source /home/lfs/.bash_profile
 	export MAKEFLAGS='-j5'
-	# build
-	query = "SELECT * FROM pkgs WHERE 1"
-	db_cached_pkgs = `${SQLITE_REMOTE} ${query}`
-	for row in ${db_cached_pkgs}; do
-		echo $row;
+	# build process
+	export db_cached_query_pkgs="SELECT * FROM pkgs WHERE 1"
+	export db_cached_results_pkgs=`sqlite3 ${REMOTE_DB} "${db_cached_query_pkgs}"`;
+	for row in ${db_cached_results_pkgs}; do
 		if [ -z "$row" ]; then
-			echo "Halogen is (propably) complete!"
+			echo "Halogen package manager complete!"
 			exit 0
 		fi
+		export db_cached_pkgs_pkg=`echo ${db_cached_results_pkgs} | awk '{split($0,a,"|"); print a[2]}'`;
+		export db_cached_pkgs_ver=`echo ${db_cached_results_pkgs} | awk '{split($0,a,"|"); print a[3]}'`
+		echo ":: ${db_cached_pkgs_pkg}-${db_cached_pkgs_ver}"
 	done
 	exit ;;
 
   # build-base)
     # query="SELECT * FROM packages_base WHERE 1"
-    # commit=`sqlite3 $lib_path/halogen.db "$query";
+    # commit=`sqlite3 $lib_path/halogen.db "$query`;
     
     # echo $commit
     

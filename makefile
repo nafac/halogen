@@ -2,7 +2,7 @@ install:
 	mkdir -p /usr/local/bin
 	cp usr/local/bin/halogenzip /usr/local/bin/halogenzip
 	chmod +x /usr/local/bin/halogenzip
-	cp -n etc/halogen.conf /etc/halogen.conf
+	cp -nf etc/halogen.conf /etc/halogen.conf
 	cp usr/local/bin/halogen /usr/local/bin/halogen
 	cp usr/local/bin/halogen-admin /usr/local/bin/halogen-admin
 	chmod +x /usr/local/bin/halogen
@@ -21,6 +21,6 @@ install:
 #	sudo chmod -R 0666 /var/lib/halogen
 #	sudo chmod -R +x /var/lib/halogen/halogen.db
 uninstall:
-	rm -f /usr/local/bin/halogenzip /usr/local/bin/halogen /usr/local/bin/halogen-admin
+	rm -f /usr/local/bin/halogenzip /usr/local/bin/halogen /usr/local/bin/halogen-admin /etc/halogen.conf
 	rm -Rf /var/lib/halogen
 	rm -Rf /tmp/halogen
