@@ -2,7 +2,6 @@ install:
 	mkdir -p /usr/local/bin
 	cp usr/local/bin/halogenzip /usr/local/bin/halogenzip
 	chmod +x /usr/local/bin/halogenzip
-	cp -n etc/halogen.conf /etc/halogen.conf
 	cp usr/local/bin/halogen /usr/local/bin/halogen
 	cp usr/local/bin/halogen-admin /usr/local/bin/halogen-admin
 	chmod +x /usr/local/bin/halogen
@@ -13,6 +12,7 @@ install:
 	cp -n var/lib/halogen/sqlite.local /var/lib/halogen/sqlite.local
 	cp -n var/lib/halogen/sqlite.remote /var/lib/halogen/sqlite.remote
 	cp -f var/lib/halogen/pkg/* /var/lib/halogen/pkg
+	cp -f etc/halogen.conf /etc/halogen.conf
 	
 #	sudo chmod +x /bin/uunzip /usr/bin/halogen*
 #	sudo chmod -R 0777 /var/lib/halogen /tmp/halogen
