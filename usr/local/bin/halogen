@@ -185,7 +185,7 @@ case $1 in
 	wget https://github.com/nafac/halogen/raw/master/usr/local/bin/halogen -O /usr/local/bin/halogen
 	chmod +x /usr/local/bin/halogen
 	mkdir -p /var/lib/halogen
-	chmod -R 1777 /var/lib/halogen/sqlite
+	chmod -R 1777 /var/lib/halogen/sqlite 
 	wget https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote -O /var/lib/halogen/sqlite.remote
     exit ;;
   bootstrap) 
