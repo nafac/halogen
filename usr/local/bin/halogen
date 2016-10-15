@@ -158,19 +158,19 @@ function _lfs_check_bootstrap_environment {
 	done
 }
 function _lfs_prepare_disks {
-	mkdir -pv $LFS
-	mount -v -t ext4 $BOOTSTRAP_ROOT $LFS
-	/sbin/swapon -v $BOOTSTRAP_SWAP
-	mkdir -v $LFS/sources
-	chmod -v a+wt $LFS/sources
-	mkdir -v $LFS/tools
-	ln -sv $LFS/tools /
-	groupadd lfs
-	useradd -s /bin/bash -g lfs -m -k /dev/null lfs
-	passwd lfs
-	chown -v lfs $LFS/tools
-	chown -v lfs $LFS/sources
-	su - lfs
+	mkdir -pv $LFS							# create new root
+	mount -v -t ext4 $BOOTSTRAP_ROOT $LFS	# mount new root
+	/sbin/swapon -v $BOOTSTRAP_SWAP			# mount new swapon
+	mkdir -v $LFS/sources					# create temp folders 
+	chmod -v a+wt $LFS/sources				# change temp folder permissions
+	mkdir -v $LFS/tools						# create temp folders
+	ln -sv $LFS/tools /						# create temp folders symlink
+	groupadd lfs							# create user
+	useradd -s /bin/bash -g lfs -m -k /dev/null lfs	# modify user shell
+	passwd lfs								# change user password
+	chown -v lfs $LFS/tools					# change temp folder permissions
+	chown -v lfs $LFS/sources				# change temp folder permissions
+	su -c "/usr/local/bin/halogen bootstrap-lfs" lfs	# change user and continue bootstrap
 }
 
 case $1 in
@@ -181,10 +181,29 @@ case $1 in
 	_lfs_check_bootstrap_environment;
 	_lfs_prepare_disks;
 	exit ;;
+  bootstrap-lfs)
+	# configure environment
+	rm /home/lfs/.bash_profile																		# remove existing .bash_profile
+	echo "exec env -i HOME=$HOME TERM=$TERM PS1='\u:\w\$ ' /bin/bash" >> /home/lfs/.bash_profile	# create new .bash_profile
+	rm /home/lfs/.bashrc																					# create new shell variables
+	echo "set +h; umask 022; LFS=/mnt/lfs; LC_ALL=POSIX; LFS_TGT=$(uname -m)-lfs-linux-gnu; PATH=/tools/bin:/bin:/usr/bin; export LFS LC_ALL LFS_TGT PATH" >> /home/lfs/.bashrc
+	source /home/lfs/.bash_profile
+	export MAKEFLAGS='-j5'
+	# build
+	# query = "SELECT * FROM pkgs WHERE 1"
+	# db_cached_pkgs = `${SQLITE_REMOTE} ${query}`
+	# for row in ${db_cached_pkgs}; do
+		# echo $row;
+		# if [ -z "$row" ]; then
+			# echo "Halogen is (propably) complete!"
+			# exit 0
+		# fi
+	# done
+	exit ;;
 
   # build-base)
     # query="SELECT * FROM packages_base WHERE 1"
-    # commit=`sqlite3 $lib_path/halogen.db "$query"`;
+    # commit=`sqlite3 $lib_path/halogen.db "$query";
     
     # echo $commit
     
