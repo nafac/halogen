@@ -15,7 +15,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.ddd
-source /etc/halogen.conf
+source /etc/halogen.conf &> /dev/null
 
 # definitions
 BUILD_FLAGS='CFLAGS="${CFLAGS}" CXXFLAGS="${CXXFLAGS}" LDFLAGS="${LDFLAGS}"'
@@ -184,6 +184,8 @@ case $1 in
 	fi
 	wget https://github.com/nafac/halogen/raw/master/usr/local/bin/halogen -O /usr/local/bin/halogen
 	chmod +x /usr/local/bin/halogen
+	mkdir -p /var/lib/halogen
+	chmod -R 1777 /var/lib/halogen/sqlite
 	wget https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote -O /var/lib/halogen/sqlite.remote
     exit ;;
   bootstrap) 
