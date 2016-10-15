@@ -182,9 +182,9 @@ case $1 in
 	   echo "please run halogen update as root"
 	   exit
 	fi
-	wget -q https://github.com/nafac/halogen/raw/master/usr/local/bin/halogen -O /usr/local/bin/halogen
+	wget https://github.com/nafac/halogen/raw/master/usr/local/bin/halogen -O /usr/local/bin/halogen
 	chmod +x /usr/local/bin/halogen
-	wget -q https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote -O /var/lib/halogen/sqlite.remote
+	wget https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote -O /var/lib/halogen/sqlite.remote
     exit ;;
   bootstrap) 
 	_lfs_check_bootstrap_environment;
