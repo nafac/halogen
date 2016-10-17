@@ -34,10 +34,106 @@ hash rsync 2> /dev/null || { echo >&2 "rsync is required to run halogen. Abortin
 mkdir $tmp_path &> /dev/null
 cd $tmp_path
 
-# Load functions at the beginning of the script.
-function _wget_source {
-  return 0
+# auxiliary
+function _aux_remote_db_touch {
+	echo "Touching ${REMOTE_DB} .."
+	# sqlite3 ${REMOTE_DB} "UPDATE pkgs SET cfg = Replace(cfg, x'0D', '')"	# Disk I/O-error
 }
+
+#
+# __build_get_sources package_id
+#
+function __build_get_sources {
+	# pre-hooks
+	# main-hooks
+	echo "__build_get_sources()";
+	
+	_db_cached_results_pkg_pkg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT pkg FROM pkgs WHERE id=${1}"`
+	_db_cached_results_pkg_ver=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT ver FROM pkgs WHERE id=${1}"`
+	_db_cached_results_pkg_rev=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT rev FROM pkgs WHERE id=${1}"`
+	_db_cached_results_pkg_furl=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT furl FROM pkgs WHERE id=${1}"`
+	_db_cached_results_pkg_hash=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT hash FROM pkgs WHERE id=${1}"`
+	
+	_file_path_checksum="${_db_cached_results_pkg_pkg}-${_db_cached_results_pkg_ver}r${_db_cached_results_pkg_rev}.checksum"
+	
+	echo "downloading ${_db_cached_results_pkg_pkg}-${_db_cached_results_pkg_ver}r${_db_cached_results_pkg_rev} .."
+	wget -q -N ${_db_cached_results_pkg_furl}
+	
+	# create checksum file from db
+	rm -f $_file_path_checksum
+	echo "$_db_cached_results_pkg_hash" >> $_file_path_checksum
+	
+	# checksumming
+	sha512sum -c $_file_path_checksum
+	while [[ $? != 0 ]]; do
+		echo "Checksum INVALID !!"
+		wget -q ${_db_cached_results_pkg_furl}
+	done;
+	echo "Checksum OK !!"
+	
+	tar -xf $(basename "${_db_cached_results_pkg_furl}")
+	# post-hooks
+	return 0;
+}
+function __build_configure {
+	# pre-hooks
+	# main-hooks
+	# post-hooks
+	return 0;
+}
+function __build_make {
+	# pre-hooks
+	# main-hooks
+	# post-hooks
+	return 0;
+}
+function __build_check {
+	# pre-hooks
+	# main-hooks
+	# post-hooks
+	return 0;
+}
+function __build_install {
+	# pre-hooks
+	# main-hooks
+	# post-hooks
+	return 0;
+}
+function _build_package {
+	echo "_build_package ID=${1}";
+	
+	cd ${TMP_PATH}
+	
+	__build_get_sources ${1}
+	
+	# echo "fetching $_package .."
+	# apt-src install $_package
+        
+	# unset $IFS
+	# cd ${tmp_path}/${_package}*
+        
+	# if _make_build $_opti; then
+		# echo
+	# else
+		# continue
+	# fi
+	# if _make_check; then
+		# echo
+	# else
+		# continue
+	# fi
+	# if _make_install; then
+		# sqlite3 $lib_path/halogen.db "INSERT INTO packages_installed (package) VALUES ('$_package')";
+	# else
+		# continue
+	# fi
+	
+	cd ~
+	
+	return 0;
+}
+
+# old
 function _make_build {
   echo "configuring .."
   ./configure ${BUILD_FLAGS}
@@ -84,12 +180,6 @@ function _make_install {
   fi
 }
 # post
-
-# AUX
-function _aux_remote_db_touch {
-	echo "Touching ${REMOTE_DB} .."
-	# sqlite3 ${REMOTE_DB} "UPDATE pkgs SET cfg = Replace(cfg, x'0D', '')"	# Disk I/O-error
-}
 
 # Linux From Scratch
 function _lfs_check_bootstrap_environment {
@@ -197,6 +287,7 @@ function _lfs_prepare_user {
 	export MAKEFLAGS="-j5"
 	return 1;
 }
+
 function _lfs_bootstrap_internal_one {
 	_aux_remote_db_touch;
 	echo "debug #2"
@@ -220,6 +311,8 @@ function _lfs_bootstrap_internal_one {
 	
 		echo "Working on ${_db_cached_results_pkg_pkg} (${_db_cached_results_pkg_ver}r${_db_cached_results_pkg_rev})"
 		echo "config: $_db_cached_results_pkg_cfg"
+		
+		_build_package ${row};
 	done
 	return 0;
 }
