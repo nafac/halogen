@@ -85,6 +85,12 @@ function _make_install {
 }
 # post
 
+# AUX
+function _aux_remote_db_touch {
+	echo "Touching ${REMOTE_DB} .."
+	# sqlite3 ${REMOTE_DB} "UPDATE pkgs SET cfg = Replace(cfg, x'0D', '')"	# Disk I/O-error
+}
+
 # Linux From Scratch
 function _lfs_check_bootstrap_environment {
 	# toolchain check
@@ -175,6 +181,48 @@ function _lfs_prepare_disks {
 	echo "su -c '/usr/local/bin/halogen update' root"	#
 	echo "/usr/local/bin/halogen bootstrap-lfs"			#
 }
+function _lfs_prepare_user {
+	while true; do
+		read -p "Install default .bashrc and .bash_profile for use lfs?" yn
+		case $yn in
+			[Yy]* ) break;;
+			[Nn]* ) return 0;;
+			* ) echo "yes or no.";;
+		esac
+	done
+	rm /home/lfs/.bashrc
+	rm /home/lfs/.bash_profile
+	cp -f /tmp/halogen/.bashrc /home/lfs/.bashrc
+	cp -f /tmp/halogen/.bash_profile /home/lfs/.bash_profile
+	export MAKEFLAGS="-j5"
+	return 1;
+}
+function _lfs_bootstrap_internal_one {
+	_aux_remote_db_touch;
+	echo "debug #2"
+	# build process
+	_db_cached_results_pkg_id=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT id FROM pkgs WHERE 1"`
+	echo "debug #3"
+	for row in $_db_cached_results_pkg_id; do
+		echo "debug #3"
+		echo $row;
+		if [ -z "$row" ]; then
+			echo "Halogen package manager is complete!"
+			exit 0
+		fi
+		
+		_db_cached_results_pkg_pkg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT pkg FROM pkgs WHERE id=${row}"`
+		_db_cached_results_pkg_ver=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT ver FROM pkgs WHERE id=${row}"`
+		_db_cached_results_pkg_rev=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT rev FROM pkgs WHERE id=${row}"`
+		_db_cached_results_pkg_cfg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT cfg FROM pkgs WHERE id=${row}"`
+		
+		echo "debug #4"
+	
+		echo "Working on ${_db_cached_results_pkg_pkg} (${_db_cached_results_pkg_ver}r${_db_cached_results_pkg_rev})"
+		echo "config: $_db_cached_results_pkg_cfg"
+	done
+	return 0;
+}
 
 case $1 in
   update)
@@ -193,28 +241,12 @@ case $1 in
   bootstrap) 
 	_lfs_check_bootstrap_environment;
 	_lfs_prepare_disks;
+	_lfs_prepare_user;
 	exit ;;
-  bootstrap-lfs)
-	# configure environment
-	rm ~/.bashrc
-	rm ~/.bash_profile
-	cp -f /tmp/halogen/.bashrc ~/.bashrc
-	cp -f /tmp/halogen/.bash_profile ~/.bash_profile
-	source /home/lfs/.bash_profile
-	export MAKEFLAGS='-j5'
-	# build
-	db_cached_queries_pkgs= "SELECT * FROM pkgs WHERE 1"
-	db_cached_results_pkgs=`sqlite3 ${REMOTE_DB} "${db_cached_queries_pkgs}"`;
-	for row in ${db_cached_results_pkgs}; do
-		echo $row;
-		if [ -z "$row" ]; then
-			echo "Halogen package manager is complete!"
-			exit 0
-		fi
-	done
+  bootstrap-internal-one) 
+	_lfs_bootstrap_internal_one;
 	exit ;;
-
-  # build-base)
+  build-base)
     # query="SELECT * FROM packages_base WHERE 1"
     # commit=`sqlite3 $lib_path/halogen.db "$query";
     
@@ -336,10 +368,9 @@ case $1 in
         # continue
       # done
     # done
-    # exit 0 ;;
-  resume)
-    # resume where left
     exit ;;
+  resume)
+	exit ;;
   *)
     exit ;;
 esac
