@@ -292,12 +292,13 @@ function _lfs_prepare_disks {
 	groupadd lfs							# create user
 	useradd -s /bin/bash -g lfs -m -k /dev/null lfs	# modify user shell
 	passwd lfs								# change user password
+	chown -vR lfs /home/lfs &> /dev/null	# just in case
 	chown -v lfs $LFS/tools					# change temp folder permissions
 	chown -v lfs $LFS/sources				# change temp folder permissions
 	echo "To continue, please run:"
 	echo "su -l lfs"									#
-	echo "su -c '/usr/local/bin/halogen update' root"	#
-	echo "/usr/local/bin/halogen bootstrap-lfs"			#
+	echo "su -c '/usr/local/bin/halogen update' root"	# guide
+	echo "halogen bootstrap-internal-one"				#
 }
 function _lfs_prepare_user {
 	while true; do
@@ -359,6 +360,55 @@ case $1 in
 	echo "Updating package database .."
 	wget -q -O -O /var/lib/halogen/sqlite.remote https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote
     exit ;;
+  bootstrap-update-host-toolchain)
+	cd /tmp/halogen
+	echo "downloading gcc and dependancies.."
+	wget -q -N https://ftp.gnu.org/pub/gnu/gcc/gcc-6.2.0/gcc-6.2.0.tar.gz
+	wget -q -N http://www.mpfr.org/mpfr-current/mpfr-3.1.5.tar.gz
+	wget -q -N https://ftp.gnu.org/gnu/gmp/gmp-6.1.1.tar.bz2
+	wget -q -N ftp://ftp.gnu.org/gnu/mpc/mpc-1.0.2.tar.gz
+	echo "extracting gcc and dependancies.."
+	rm -Rf {gcc-6.2.0,mpfr-3.1.5,gmp-6.1.1,mpc-1.0.2}
+	tar -xf gcc-6.2.0.tar.gz && tar -xf mpfr-3.1.5.tar.gz && tar -xf gmp-6.1.1.tar.bz2 && tar -xf mpc-1.0.2.tar.gz
+	mkdir -p gcc-6.2.0/{mpfr,gmp,mpc}
+	mv -f mpfr-3.1.5 gcc-6.2.0/mpfr && mv -f gmp-6.1.1 gcc-6.2.0/gmp && mv -f mpc-1.0.2 gcc-6.2.0/mpc
+	mkdir -v -p gcc-6.2.0/build
+	cd gcc-6.2.0/build
+	echo "oonfiguring gcc.."
+	../configure -v --enable-languages=c,c++,go,fortran,objc,obj-c++ --prefix=/usr --enable-shared --enable-linker-build-id --with-system-zlib --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --with-sysroot=/ --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --enable-gnu-unique-object --enable-plugin --enable-objc-gc --with-arch-32=i686 --with-tune=generic --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --disable-multilib --disable-bootstrap
+	if [ $? -eq 0 ]; then
+		# post-hooks
+		echo "building gcc.."
+		make ${MAKEOPTS}
+		if [ $? -eq 0 ]; then
+			# post-hooks
+			echo "checking gcc.."
+			make ${MAKEOPTS} check
+			if [ $? -eq 0 ]; then
+				# post-hooks
+				echo "installing gcc.."
+				make ${MAKEOPTS} install
+				if [ $? -eq 0 ]; then
+					echo "SUCCESSFULLY INSTALLED GCC 6.2.0"
+					gcc -v
+					exit 0
+				else
+					echo "FAILED TO INSTALL GCC 6.2.0"
+					exit 1
+				fi
+			else
+				echo "failed to check gcc!!"
+				exit 1
+			fi
+		else
+			echo "failed to build gcc!!"
+			exit 1
+		fi
+	else
+		echo "failed to configure gcc!!"
+		exit 1
+	fi
+	exit ;;
   bootstrap) 
 	_lfs_check_bootstrap_environment;
 	_lfs_prepare_disks;

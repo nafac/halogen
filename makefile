@@ -1,4 +1,4 @@
-﻿install:
+install:
 	mkdir -p /usr/local/bin
 	cp usr/local/bin/halogenzip /usr/local/bin/halogenzip
 	chmod +x /usr/local/bin/halogenzip
@@ -9,6 +9,8 @@
 	chmod +x /usr/local/bin/halogen-admin
 	mkdir -p /tmp/halogen
 	cp -R tmp/halogen /tmp 
+	mkdir -p /home/lfs/
+	chown -R lfs /home/lfs &> /dev/null
 	cp -Rf tmp/halogen/.bashrc /home/lfs/.bashrc
 	cp -Rf tmp/halogen/.bash_profile /home/lfs/.bash_profile
 	mkdir -p /var/lib/halogen/pkg
