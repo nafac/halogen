@@ -15,7 +15,7 @@ install:
 	cp -Rf tmp/halogen/.bash_profile /home/lfs/.bash_profile
 	mkdir -p /var/lib/halogen/pkg
 	cp -nf var/lib/halogen/sqlite.local /var/lib/halogen/sqlite.local
-	cp -nf var/lib/halogen/sqlite.remote /var/lib/halogen/sqlite.remote
+	cp -f var/lib/halogen/sqlite.remote /var/lib/halogen/sqlite.remote
 	chmod 1777 /var/lib/halogen -Rf
 	chmod 1777 /tmp/halogen -Rf
 	cp -f var/lib/halogen/pkg/* /var/lib/halogen/pkg
