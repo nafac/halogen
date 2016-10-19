@@ -24,27 +24,24 @@ SQLITE_LOCAL='sqlite3 $lib_path/sqlite.local'
 
 # lfs
 export LFS=/mnt/lfs
-export LFS_TGT=x86_64-lfs-linux-gnu
-
-# Unorthodox way to check package manager dependancies.
-hash sqlite3 2> /dev/null || { echo >&2 "sqlite3 is required to run halogen. Aborting."; exit 1; }
-hash wget 2> /dev/null || { echo >&2 "wget is required to run halogen. Aborting."; exit 1; }
-hash rsync 2> /dev/null || { echo >&2 "rsync is required to run halogen. Aborting."; exit 1; }
+export LFS_TGT=x86_64-pc-linux-gnu
 
 # Enter working directory.
 mkdir $TMP_PATH &> /dev/null
 cd $TMP_PATH
 
-# auxiliary
+#
+# fix databases
+#
 function _aux_remote_db_touch {
-	echo "Touching ${REMOTE_DB} .."
 	# sqlite3 ${REMOTE_DB} "UPDATE pkgs SET cfg = Replace(cfg, x'0D', '')"	# Disk I/O-error
+	return 0;
 }
 
 #
 # __build_get_sources package_id
 #
-function __build_get_sources {
+function __build_get_sources() {
 	echo "__build_get_sources(package_id)";
 	_db_cached_results_pkg_pkg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT pkg FROM pkgs WHERE id=${1}"`
 	_db_cached_results_pkg_ver=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT ver FROM pkgs WHERE id=${1}"`
@@ -74,7 +71,7 @@ function __build_get_sources {
 	$_db_cached_results_pkg__build_get_sources_post_hooks
 	return 0;
 }
-function __build_add_structure {
+function __build_add_structure() {
 	echo "__build_add_structure(package_id)"
 	
 	_db_cached_results_pkg_furl=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT furl FROM pkgs WHERE id=${1}"`
@@ -93,9 +90,10 @@ function __build_add_structure {
 	if [ $? -eq 0 ]; then
 		return 0
 	fi
-	exit 1;
+	echo "__build_add_structure(${pkg_id}) failed"
+	return -1
 }
-function __build_configure {
+function __build_configure() {
 	echo "__build_configure(package_id)";
 	_db_cached_results_pkg_pkg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT pkg FROM pkgs WHERE id=${1}"`
 	_db_cached_results_pkg_ver=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT ver FROM pkgs WHERE id=${1}"`
@@ -114,9 +112,9 @@ function __build_configure {
 		return 0
 	fi
     echo "__build_configure(${1}) failed!"
-	exit 1;
+	return -1;
 }
-function __build_make {
+function __build_make() {
 	echo "__build_make(package_id)";
 	# pre-hooks
 	# main-hooks
@@ -127,28 +125,31 @@ function __build_make {
 	fi
     echo "__build_check(${1}) failed!"
 	# post-hooks
-	exit 1;
+	return -1
 }
-function __build_check {
+function __build_check() {
 	echo "__build_check(package_id)";
 	# pre-hooks
-	# main-hooks
 	make ${MAKEOPTS} check
 	if [ $? -eq 0 ]; then
 		# post-hooks
 		return 0
 	fi
     echo "__build_check(${1}) failed!"
-    exit 1;
+	return -1
 }
-function __build_install {
+function __build_install() {
 	echo "__build_install(package_id)";
 	# pre-hooks
-	# main-hooks
-	# post-hooks
-	return 0;
+	make install
+	if [ $? -eq 0 ]; then
+		# post-hooks
+		return 0
+	fi
+    echo "__build_install(${1}) failed!"
+	return -1
 }
-function __build_sanitize_structure {
+function __build_sanitize_structure() {
 	echo "__build_del_structure(package_id)"
 	
 	_db_cached_results_pkg_furl=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT furl FROM pkgs WHERE id=${1}"`
@@ -159,15 +160,20 @@ function __build_sanitize_structure {
 	cd /tmp/halogen && rm -Rf ${_pkg_foldername}
 	return 0;
 }
+export -f __build_get_sources
+export -f __build_add_structure
+export -f __build_configure
+export -f __build_make
+export -f __build_check
 #
 # build; with databases; configure and build
 #
 function _build_package {
-	echo "_build_package ID=${1}";
+	echo "_build_package ID = ${pkg_id}";
 	
-	_db_cached_results_pkg_pkg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT pkg FROM pkgs WHERE id=${1}"`
-	_db_cached_results_pkg_ver=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT ver FROM pkgs WHERE id=${1}"`
-	_db_cached_results_pkg_rev=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT rev FROM pkgs WHERE id=${1}"`
+	_db_cached_results_pkg_pkg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT pkg FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_ver=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT ver FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_rev=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT rev FROM pkgs WHERE id=${pkg_id}"`
 	_pkg_name="${_db_cached_results_pkg_pkg} (${_db_cached_results_pkg_ver}r${_db_cached_results_pkg_rev})"
 
 	cd ${TMP_PATH}
@@ -175,20 +181,35 @@ function _build_package {
 	_db_cached_results_is_installed=`sqlite3 /var/lib/halogen/sqlite.local "SELECT count(*), * FROM pkgs WHERE pkg='${_db_cached_results_pkg_pkg}' AND ver='${_db_cached_results_pkg_ver}' AND rev='${_db_cached_results_pkg_rev}'"`
 	if [[ $(echo ${_db_cached_results_is_installed} | awk '{split($0,a,"|"); print a[1]}') != "0" ]]; then
 		echo "${_pkg_name} is already installed. rolling on.."
-		return 0;
+		export pkg_id=-1
 	fi
-	
-	__build_get_sources ${1}
-	__build_add_structure ${1}
-	__build_configure ${1}
-	__build_make ${1}
-	__build_check ${1}
-	__build_install ${1}
-	__build_sanitize_structure ${0}
-	
-	sqlite3 /var/lib/halogen/sqlite.local "INSERT INTO pkgs (pkg, ver, rev) VALUES ('${_db_cached_results_pkg_pkg}', '${_db_cached_results_pkg_ver}', '${_db_cached_results_pkg_rev}')"
-	# sqlite3 /var/lib/halogen/sqlite.local "INSERT INTO pkgs (pkg) VALUES ('$installed')";
-	
+	if [[ $(__build_get_sources ${pkg_id}) == -1 ]]; then
+		export pkg_id=-1
+		return -1;
+	fi
+	if [[ $(__build_add_structure ${pkg_id}) == -1 ]]; then
+		export pkg_id=-1
+		return -1;
+	fi
+	if [[ $(__build_configure ${pkg_id}) == -1 ]]; then
+		export pkg_id=-1
+		return -1;
+	fi
+	if [[ $(__build_make ${pkg_id}) == -1 ]]; then
+		export pkg_id=-1
+		return -1;
+	fi
+	if [[ $(__build_check ${pkg_id}) == -1 ]]; then
+		export pkg_id=-1
+		return -1;
+	fi
+	return 0;
+}
+
+export -f _build_package
+function _build_package_root {
+	__build_install ${pkg_id}
+	__build_sanitize_structure ${pkg_id}
 	return 0;
 }
 #
@@ -204,22 +225,21 @@ function __build_package_simple {
 	
 	return 0;
 }
-
 function _lfs_fetch_gcc_dependancies {
-	ls -v ../build &> /dev/null
-	if [ $? -eq 0 ]; then
-		echo "Fetching GCC dependancies..";
-		wget -q -N http://www.mpfr.org/mpfr-current/mpfr-3.1.5.tar.gz
-		wget -q -N https://ftp.gnu.org/gnu/gmp/gmp-6.1.1.tar.bz2
-		wget -q -N ftp://ftp.gnu.org/gnu/mpc/mpc-1.0.2.tar.gz
-		rm -Rf {../mpfr,../gmp,../mpc}
-		tar -xf mpfr-3.1.5.tar.gz && tar -xf gmp-6.1.1.tar.bz2 && tar -xf mpc-1.0.2.tar.gz
-		mv -f mpfr-3.1.5 ../mpfr && mv -f gmp-6.1.1 ../gmp && mv -f mpc-1.0.2 ../mpc
-		return 0;
-	fi
-    echo "_lfs_fetch_gcc_dependancies(null): script is in wrong folder.."
-    exit 1;
-
+#	ls -v ../build &> /dev/null
+#	if [ $? -eq 0 ]; then
+#		echo "Fetching GCC dependancies..";
+#		wget -q -N http://www.mpfr.org/mpfr-current/mpfr-3.1.5.tar.gz
+#		wget -q -N https://ftp.gnu.org/gnu/gmp/gmp-6.1.1.tar.bz2
+#		wget -q -N ftp://ftp.gnu.org/gnu/mpc/mpc-1.0.2.tar.gz
+#		rm -Rf {../mpfr,../gmp,../mpc}
+#		tar -xf mpfr-3.1.5.tar.gz && tar -xf gmp-6.1.1.tar.bz2 && tar -xf mpc-1.0.2.tar.gz
+#		mv -f mpfr-3.1.5 ../mpfr && mv -f gmp-6.1.1 ../gmp && mv -f mpc-1.0.2 ../mpc
+#		return 0;
+#	fi
+#   echo "_lfs_fetch_gcc_dependancies(null): script is in wrong folder.."
+#   exit 1;
+	return -1;
 }
 function _lfs_check_bootstrap_environment {
 	# toolchain check
@@ -327,93 +347,111 @@ function _lfs_prepare_user {
 	export MAKEFLAGS="-j5"
 	return 1;
 }
-
 function _lfs_bootstrap_internal_one {
 	echo "_lfs_bootstrap_internal_one(null)"
 	_aux_remote_db_touch;
 	
-	_db_cached_results_pkg_id=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT id FROM pkgs WHERE 1"`
+	_db_cached_results_pkg_id=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT id FROM pkgs WHERE 1 ORDER BY id ASC"`
 
 	for pkg_id in $_db_cached_results_pkg_id; do
 		if [ -z "$pkg_id" ]; then
 			echo "Halogen package manager is complete!"
 			exit 0
 		fi
+		
+		export pkg_id=${pkg_id}
+		
 		_db_cached_results_pkg_pkg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT pkg FROM pkgs WHERE id=${pkg_id}"`
 		_db_cached_results_pkg_ver=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT ver FROM pkgs WHERE id=${pkg_id}"`
 		_db_cached_results_pkg_rev=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT rev FROM pkgs WHERE id=${pkg_id}"`
 		_db_cached_results_pkg_cfg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT cfg FROM pkgs WHERE id=${pkg_id}"`
-		echo "Working on ${_db_cached_results_pkg_pkg} (${_db_cached_results_pkg_ver}r${_db_cached_results_pkg_rev})"
-		_build_package ${pkg_id};
+		
+		echo {$_db_cached_results_pkg_pkg,$_db_cached_results_pkg_ver,$_db_cached_results_pkg_rev,$_db_cached_results_pkg_cfg}
+		
+		su lfs -c '_build_package $((${pkg_id})))'	# download, hash, fold, configure, build and check as normal user
+		if [ $? -eq 0 ]; then
+			exit 1
+		fi
+		if [[ ${pkg_id} == -1 ]]; then
+			echo "usermode build failed!"
+			exit 1
+		fi
+		_build_package_root ${pkg_id}
+		
+		sqlite3 /var/lib/halogen/sqlite.local "INSERT INTO pkgs (pkg, ver, rev) VALUES ('${_db_cached_results_pkg_pkg}', '${_db_cached_results_pkg_ver}', '${_db_cached_results_pkg_rev}')"
 	done
 	return 0;
 }
-
 case $1 in
   update)
 	if [ "$EUID" -ne 0 ]; then
 	   echo "please run halogen update as root"
 	   exit
 	fi
-	echo "Updating scripts .."
-	wget -q -O /usr/local/bin/halogen https://raw.githubusercontent.com/nafac/halogen/master/usr/local/bin/halogen
+	echo "Updating scripts .. (does not work)"
+	# wget -q -O /usr/local/bin/halogen https://raw.githubusercontent.com/nafac/halogen/master/usr/local/bin/halogen
 	chmod +x /usr/local/bin/halogen
 	mkdir /var/lib/halogen &> /dev/null
 	chmod -R 1777 /var/lib/halogen
-	echo "Updating package database .."
-	wget -q -O -O /var/lib/halogen/sqlite.remote https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote
+	echo "Updating package database .. (does not work)"
+	# wget -q -O  /var/lib/halogen/sqlite.remote https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote
     exit ;;
-  bootstrap-update-host-toolchain)
-	echo "downloading binutils and dependancies.."
-	cd /tmp/halogen
-	wget -q -N https://ftp.gnu.org/gnu/binutils/binutils-2.26.1.tar.gz
-	rm -Rf binutils-2.26.1
-	tar -xf binutils-2.26.1.tar.gz
-	mkdir binutils-2.26.1/build
-	cd binutils-2.26.1/build
-	echo "configuring binutils.."
-	../configure --prefix=/usr --enable-shared --disable-werror
-	if [ $? -eq 0 ]; then
-		__build_package_simple
-	else
-		echo "Failed to configure!"
-		exit 1
-	fi
-	echo "downloading glibc and dependancies.."
-	cd /tmp/halogen
-	wget -q -N https://ftp.gnu.org/gnu/glibc/glibc-2.24.tar.gz
-	rm -Rf glibc-2.24
-	tar -xf glibc-2.24.tar.gz
-	mkdir glibc-2.24/build
-	cd glibc-2.24/build
-	echo "configuring glibc.."
-	../configure --prefix=/usr --enable-kernel=4.4.25 --enable-obsolete-rpc
-	if [ $? -eq 0 ]; then
-		__build_package_simple
-	else
-		echo "Failed to configure!"
-		exit 1
-	fi
-	
-	echo "downloading gcc and dependancies.."
-	cd /tmp/halogen
-	wget -q -N https://ftp.gnu.org/pub/gnu/gcc/gcc-6.2.0/gcc-6.2.0.tar.gz
-	_lfs_fetch_gcc_dependancies
-	echo "oonfiguring gcc.."
-	../configure -v --enable-languages=c,c++,go,fortran,objc,obj-c++ --prefix=/usr --enable-shared --enable-linker-build-id --with-system-zlib --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --with-sysroot=/ --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --enable-gnu-unique-object --enable-plugin --enable-objc-gc --with-arch-32=i686 --with-tune=generic --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --disable-multilib --disable-bootstrap
-	if [ $? -eq 0 ]; then
-		__build_package_simple
-	else
-		echo "Failed to configure!"
-		exit 1
-	fi
-	exit ;;
+#  bootstrap-update-host-toolchain)
+#	echo "downloading binutils and dependancies.."
+#	cd /tmp/halogen
+#	wget -q -N https://ftp.gnu.org/gnu/binutils/binutils-2.26.1.tar.gz
+#	rm -Rf binutils-2.26.1
+#	tar -xf binutils-2.26.1.tar.gz
+#	mkdir binutils-2.26.1/build
+#	cd binutils-2.26.1/build
+#	echo "configuring binutils.."
+#	../configure --prefix=/usr --enable-shared --disable-werror
+#	if [ $? -eq 0 ]; then
+#		__build_package_simple
+#	else
+#		echo "Failed to configure!"
+#		exit 1
+#	fi
+#	echo "downloading glibc and dependancies.."
+#	cd /tmp/halogen
+#	wget -q -N https://ftp.gnu.org/gnu/glibc/glibc-2.24.tar.gz
+#	rm -Rf glibc-2.24
+#	tar -xf glibc-2.24.tar.gz
+#	mkdir glibc-2.24/build
+#	cd glibc-2.24/build
+#	echo "configuring glibc.."
+#	../configure --prefix=/usr --enable-kernel=4.4.25 --enable-obsolete-rpc
+#	if [ $? -eq 0 ]; then
+#		__build_package_simple
+#	else
+#		echo "Failed to configure!"
+#		exit 1
+#	fi
+
+#	echo "downloading gcc and dependancies.."
+#	cd /tmp/halogen
+#	wget -q -N https://ftp.gnu.org/pub/gnu/gcc/gcc-6.2.0/gcc-6.2.0.tar.gz
+#	_lfs_fetch_gcc_dependancies
+#	echo "oonfiguring gcc.."
+#	../configure -v --enable-languages=c,c++,go,fortran,objc,obj-c++ --prefix=/usr --enable-shared --enable-linker-build-id --with-system-zlib --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --with-sysroot=/ --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --enable-gnu-unique-object --enable-plugin --enable-objc-gc --with-arch-32=i686 --with-tune=generic --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --disable-multilib --disable-bootstrap
+#	if [ $? -eq 0 ]; then
+#		__build_package_simple
+#	else
+#		echo "Failed to configure!"
+#		exit 1
+#	fi
+#	exit ;;
   bootstrap) 
 	_lfs_check_bootstrap_environment;
 	_lfs_prepare_disks;
 	_lfs_prepare_user;
 	exit ;;
   bootstrap-internal-one) 
+  	if [ "$EUID" -ne 0 ]; then
+	   echo "please run halogen bootstrap-internal-one as root"
+	   echo "download, build and check will always be executed as user 'lfs'"
+	   exit
+	fi
 	_lfs_bootstrap_internal_one;
 	exit ;;
   build-base)
