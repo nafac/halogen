@@ -15,16 +15,18 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.ddd
-source /etc/halogen.conf &> /dev/null
+source /etc/halogen.conf
 
-# definitions
-BUILD_FLAGS='CFLAGS="${CFLAGS}" CXXFLAGS="${CXXFLAGS}" LDFLAGS="${LDFLAGS}"'
-SQLITE_REMOTE='sqlite3 $lib_path/sqlite.remote'
-SQLITE_LOCAL='sqlite3 $lib_path/sqlite.local'
-
-# lfs
-export LFS=/mnt/lfs
-export LFS_TGT=x86_64-pc-linux-gnu
+# definations
+export BUILD_FLAGS='CFLAGS="${CFLAGS}" CXXFLAGS="${CXXFLAGS}" LDFLAGS="${LDFLAGS}"'
+# definations; cached queries
+export __db_cached_results_pkg_pkg="sqlite3 ${REMOTE_DB} 'SELECT pkg FROM pkgs WHERE id=${pkg_id}'"
+export __db_cached_results_pkg_ver="sqlite3 ${REMOTE_DB} 'SELECT ver FROM pkgs WHERE id=${pkg_id)'"
+export __db_cached_results_pkg_rev="sqlite3 ${REMOTE_DB} 'SELECT rev FROM pkgs WHERE id=${pkg_id}'"
+export __db_cached_results_pkg_furl="sqlite3 ${REMOTE_DB} 'SELECT furl FROM pkgs WHERE id=${pkg_id}'"
+export __db_cached_results_pkg_hash="sqlite3 ${REMOTE_DB} 'SELECT hash FROM pkgs WHERE id=${pkg_id}'"
+export __db_cached_results_pkg_get_pre_hooks="sqlite3 ${REMOTE_DB} 'SELECT __build_get_sources_pre_hooks FROM pkgs WHERE id=${pkg_id}'"
+export __db_cached_results_pkg_get_post_hooks="sqlite3 ${REMOTE_DB} 'SELECT __build_get_sources_post_hooks FROM pkgs WHERE id=${pkg_id}'"
 
 # Enter working directory.
 mkdir $TMP_PATH &> /dev/null
@@ -54,13 +56,22 @@ export -f _aux_set_package_sanity
 function __build_get_sources() {
 	echo "${FUNCNAME[0]}(${pkg_id})"
 	
-	_db_cached_results_pkg_pkg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT pkg FROM pkgs WHERE id=${pkg_id}"`
-	_db_cached_results_pkg_ver=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT ver FROM pkgs WHERE id=${pkg_id}"`
-	_db_cached_results_pkg_rev=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT rev FROM pkgs WHERE id=${pkg_id}"`
-	_db_cached_results_pkg_furl=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT furl FROM pkgs WHERE id=${pkg_id}"`
-	_db_cached_results_pkg_hash=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT hash FROM pkgs WHERE id=${pkg_id}"`
-	_db_cached_results_pkg_pre_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_get_sources_pre_hooks FROM pkgs WHERE id=${pkg_id}"`
-	_db_cached_results_pkg_post_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_get_sources_post_hooks FROM pkgs WHERE id=${pkg_id}"`
+	# compat
+	_db_cached_results_pkg_pkg=$(__db_cached_results_pkg_pkg)
+	_db_cached_results_pkg_ver=$(__db_cached_results_pkg_ver)
+	_db_cached_results_pkg_rev=$(__db_cached_results_pkg_rev)
+	_db_cached_results_pkg_furl=$(__db_cached_results_pkg_furl)
+	_db_cached_results_pkg_hash=$(__db_cached_results_pkg_hash)
+	_db_cached_results_pkg_pre_hooks=$(__db_cached_results_pkg_get_pre_hooks)
+	_db_cached_results_pkg_post_hooks=$(__db_cached_results_pkg_get_post_hooks)
+	
+	echo $_db_cached_results_pkg_pkg
+	echo $_db_cached_results_pkg_ver
+	echo $_db_cached_results_pkg_rev
+	echo $_db_cached_results_pkg_furl
+	echo $_db_cached_results_pkg_hash
+	echo $_db_cached_results_pkg_pre_hooks
+	echo $_db_cached_results_pkg_post_hooks
 
 	# constants
 	_file_path_checksum="${_db_cached_results_pkg_pkg}-${_db_cached_results_pkg_ver}r${_db_cached_results_pkg_rev}.checksum"
@@ -74,10 +85,16 @@ function __build_get_sources() {
 	rm -f $_file_path_checksum											# CHECKSUMMING PACKAGE
 	echo "$_db_cached_results_pkg_hash" >> $_file_path_checksum			# --
 	sha512sum -c $_file_path_checksum									# --
-	while [[ $? != 0 ]]; do												# --
+	i=0
+	while [[ $? != 0 && i < 3 ]]; do									# --
 		echo "Checksum INVALID !!"										# --
 		wget -q ${_db_cached_results_pkg_furl}							# --
+		i=i+1															# --
 	done;																# --
+	if [ i >= 3 ]; then
+		echo "Checksum failed too many times, aborting."
+		exit -1
+	fi
 	echo "Checksum OK !!"												# --
 	$_db_cached_results_pkg_post_hooks
 	echo "${FUNCNAME[0]}(${pkg_id}) succeeded."
@@ -124,7 +141,7 @@ function __build_configure() {
 	if [ $_db_cached_results_pkg_cfg_respect_cflags == 0 ]; then
 		../configure $_db_cached_results_pkg_cfg
 	else
-		CFLAGS="${CFLAGS}" CXXFLAGS="${CFLAGS}" ../configure $_db_cached_results_pkg_cfg
+		${BUILD_FLAGS} ../configure $_db_cached_results_pkg_cfg
 	fi
 	if [ $? -eq 0 ]; then
 		$_db_cached_results_pkg_post_hooks
@@ -146,7 +163,7 @@ function __build_make() {
 	if [ $_db_cached_results_pkg_cfg_respect_cflags == 0 ]; then
 		make -j1
 	else
-		CFLAGS="${CFLAGS}" CXXFLAGS="${CFLAGS}" make ${MAKEOPTS}
+		${BUILD_FLAGS} make ${MAKEOPTS}
 	fi
 	if [ $? -eq 0 ]; then
 		$_db_cached_results_pkg_post_hooks
@@ -168,7 +185,7 @@ function __build_check() {
 	if [ $_db_cached_results_pkg_cfg_respect_cflags == 0 ]; then
 		make -j1 check
 	else
-		CFLAGS="${CFLAGS}" CXXFLAGS="${CFLAGS}" make ${MAKEOPTS} check
+		${BUILD_FLAGS} make ${MAKEOPTS} check
 	fi
 	if [ $? -eq 0 ]; then
 		$_db_cached_results_pkg_post_hooks
@@ -385,7 +402,9 @@ function _lfs_prepare_disks {
 	echo "halogen bootstrap-internal-one"				#
 }
 function _lfs_prepare_user {
+
 	echo "${FUNCNAME[0]}(null)"
+	
 	while true; do
 		read -p "Install default .bashrc and .bash_profile for use lfs?" yn
 		case $yn in
@@ -402,7 +421,9 @@ function _lfs_prepare_user {
 	return 1;
 }
 function _bootstrap_lfs_user {
+
 	echo "${FUNCNAME[0]}(null)"
+	
 	_aux_remote_db_touch;
 	
 	_db_cached_results_pkg_id=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT id FROM pkgs WHERE 1 ORDER BY id ASC"`
