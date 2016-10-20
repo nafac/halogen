@@ -18,17 +18,29 @@
 source /etc/halogen.conf
 
 # definations
-export BUILD_FLAGS='CFLAGS="${CFLAGS}" CXXFLAGS="${CXXFLAGS}" LDFLAGS="${LDFLAGS}"'
+BUILD_FLAGS='CFLAGS="${CFLAGS}" CXXFLAGS="${CXXFLAGS}" LDFLAGS="${LDFLAGS}"'
 # definations; cached queries
-export __db_cached_results_pkg_pkg="sqlite3 ${REMOTE_DB} 'SELECT pkg FROM pkgs WHERE id=${pkg_id}'"
-export __db_cached_results_pkg_ver="sqlite3 ${REMOTE_DB} 'SELECT ver FROM pkgs WHERE id=${pkg_id)'"
-export __db_cached_results_pkg_rev="sqlite3 ${REMOTE_DB} 'SELECT rev FROM pkgs WHERE id=${pkg_id}'"
-export __db_cached_results_pkg_furl="sqlite3 ${REMOTE_DB} 'SELECT furl FROM pkgs WHERE id=${pkg_id}'"
-export __db_cached_results_pkg_hash="sqlite3 ${REMOTE_DB} 'SELECT hash FROM pkgs WHERE id=${pkg_id}'"
-export __db_cached_results_pkg_get_pre_hooks="sqlite3 ${REMOTE_DB} 'SELECT __build_get_sources_pre_hooks FROM pkgs WHERE id=${pkg_id}'"
-export __db_cached_results_pkg_get_post_hooks="sqlite3 ${REMOTE_DB} 'SELECT __build_get_sources_post_hooks FROM pkgs WHERE id=${pkg_id}'"
+__db_cached_query_pkg_pkgs="\"SELECT id FROM packages WHERE 1 ORDER BY id ASC\""
+__db_cached_query_pkg_pkg="\"SELECT pkg FROM packages WHERE id=\"${pkg_id}\"\""
+__db_cached_query_pkg_ver="\"SELECT ver FROM packages WHERE id=\"${pkg_id}\"\""
+__db_cached_query_pkg_rev="\"SELECT rev FROM packages WHERE id=\"${pkg_id}\"\""
+__db_cached_query_pkg_url="\"SELECT url FROM packages WHERE id=\"${pkg_id}\"\""
+__db_cached_query_pkg_furl="\"SELECT furl FROM packages WHERE id=\"${pkg_id}\"\""
+__db_cached_query_pkg_hash="\"SELECT hash FROM packages WHERE id=\"${pkg_id}\"\""
+__db_cached_query_get_pre_hooks="\"SELECT __build_get_sources_pre_hooks FROM packages WHERE id=\"${pkg_id}\"\""
+__db_cached_query_get_post_hooks="\"SELECT __build_get_sources_post_hooks FROM packages WHERE id=\"${pkg_id}\"\""
+function __db_cached_results {
+	# Turbo & Nitro
+	echo "${FUNCNAME[0]}(${1} ${2})"
+	rv="sqlite3 ${1} \"${2}\""
+	if [ $? -eq 0 ]; then
+		echo "query failed!"
+		_aux_set_package_sanity -1
+	fi
+	echo "${FUNCNAME[0]}(${1} ${2}) returned '${rv}'"
+	return ${rv}
+}
 
-# Enter working directory.
 mkdir $TMP_PATH &> /dev/null
 cd $TMP_PATH
 
@@ -56,22 +68,24 @@ export -f _aux_set_package_sanity
 function __build_get_sources() {
 	echo "${FUNCNAME[0]}(${pkg_id})"
 	
-	# compat
-	_db_cached_results_pkg_pkg=$(__db_cached_results_pkg_pkg)
-	_db_cached_results_pkg_ver=$(__db_cached_results_pkg_ver)
-	_db_cached_results_pkg_rev=$(__db_cached_results_pkg_rev)
-	_db_cached_results_pkg_furl=$(__db_cached_results_pkg_furl)
-	_db_cached_results_pkg_hash=$(__db_cached_results_pkg_hash)
-	_db_cached_results_pkg_pre_hooks=$(__db_cached_results_pkg_get_pre_hooks)
-	_db_cached_results_pkg_post_hooks=$(__db_cached_results_pkg_get_post_hooks)
+	echo __db_cached_results ${REMOTE_DB} "${__db_cached_query_pkg_pkg}"
 	
-	echo $_db_cached_results_pkg_pkg
-	echo $_db_cached_results_pkg_ver
-	echo $_db_cached_results_pkg_rev
-	echo $_db_cached_results_pkg_furl
-	echo $_db_cached_results_pkg_hash
-	echo $_db_cached_results_pkg_pre_hooks
-	echo $_db_cached_results_pkg_post_hooks
+	# compat
+	# _db_cached_results_pkg_pkg=$(${__db_cached_results_pkg_pkg})
+	# _db_cached_results_pkg_ver=$(${__db_cached_results_pkg_ver})
+	# _db_cached_results_pkg_rev=$(${__db_cached_results_pkg_rev})
+	# _db_cached_results_pkg_furl=$(${__db_cached_results_pkg_furl})
+	# _db_cached_results_pkg_hash=$(${__db_cached_results_pkg_hash})
+	# _db_cached_results_pkg_pre_hooks=$(${__db_cached_results_pkg_get_pre_hooks})
+	# _db_cached_results_pkg_post_hooks=$(${__db_cached_results_pkg_get_post_hooks})
+	
+	# echo $_db_cached_results_pkg_pkg
+	# echo $_db_cached_results_pkg_ver
+	# echo $_db_cached_results_pkg_rev
+	# echo $_db_cached_results_pkg_furl
+	# echo $_db_cached_results_pkg_hash
+	# echo $_db_cached_results_pkg_pre_hooks
+	# echo $_db_cached_results_pkg_post_hooks
 
 	# constants
 	_file_path_checksum="${_db_cached_results_pkg_pkg}-${_db_cached_results_pkg_ver}r${_db_cached_results_pkg_rev}.checksum"
@@ -425,10 +439,11 @@ function _bootstrap_lfs_user {
 	echo "${FUNCNAME[0]}(null)"
 	
 	_aux_remote_db_touch;
-	
-	_db_cached_results_pkg_id=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT id FROM pkgs WHERE 1 ORDER BY id ASC"`
 
-	for package_id in $_db_cached_results_pkg_id; do
+	# query
+	pkgs=$(__db_cached_results ${REMOTE_DB} \"${__db_cached_query_pkg_pkgs}\")
+	
+	for package_id in ${pkgs}; do
 		export pkg_id=${package_id}
 		
 		if [ -z "$pkg_id" ]; then
