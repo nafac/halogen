@@ -30,32 +30,44 @@ export LFS_TGT=x86_64-pc-linux-gnu
 mkdir $TMP_PATH &> /dev/null
 cd $TMP_PATH
 
-#
-# fix databases
-#
+function _aux_root_check {
+  	if [ "$EUID" -ne 0 ]; then
+	   echo 'always run halogen ${1} as root'
+	   exit
+	fi
+}
 function _aux_remote_db_touch {
 	# sqlite3 ${REMOTE_DB} "UPDATE pkgs SET cfg = Replace(cfg, x'0D', '')"	# Disk I/O-error
 	return 0;
 }
-
+function _aux_set_package_sanity {
+	if [[ ${1} == -1 ]]; then
+		export usermode_build_succeeded=-1
+		exit -1
+	fi							
+	return 0;
+}
+export -f _aux_set_package_sanity
 #
 # __build_get_sources package_id
 #
 function __build_get_sources() {
-	echo "__build_get_sources(package_id)";
-	_db_cached_results_pkg_pkg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT pkg FROM pkgs WHERE id=${1}"`
-	_db_cached_results_pkg_ver=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT ver FROM pkgs WHERE id=${1}"`
-	_db_cached_results_pkg_rev=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT rev FROM pkgs WHERE id=${1}"`
-	_db_cached_results_pkg_furl=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT furl FROM pkgs WHERE id=${1}"`
-	_db_cached_results_pkg_hash=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT hash FROM pkgs WHERE id=${1}"`
-	_db_cached_results_pkg__build_get_sources_pre_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_get_sources_pre_hooks FROM pkgs WHERE id=${1}"`
-	_db_cached_results_pkg__build_get_sources_post_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_get_sources_post_hooks FROM pkgs WHERE id=${1}"`
+	echo "${FUNCNAME[0]}(${pkg_id})"
+	
+	_db_cached_results_pkg_pkg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT pkg FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_ver=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT ver FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_rev=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT rev FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_furl=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT furl FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_hash=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT hash FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_pre_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_get_sources_pre_hooks FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_post_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_get_sources_post_hooks FROM pkgs WHERE id=${pkg_id}"`
+
 	# constants
 	_file_path_checksum="${_db_cached_results_pkg_pkg}-${_db_cached_results_pkg_ver}r${_db_cached_results_pkg_rev}.checksum"
 	
-	# pre
-	$_db_cached_results_pkg__build_get_sources_pre_hooks
-	# main
+	cd /tmp/halogen
+	
+	$_db_cached_results_pkg_pre_hooks
 	echo "downloading ${_db_cached_results_pkg_pkg}-${_db_cached_results_pkg_ver}r${_db_cached_results_pkg_rev} .."		# DOWNLOADING PACKAGE
 	wget -q -N ${_db_cached_results_pkg_furl}																			# --
 	
@@ -67,16 +79,16 @@ function __build_get_sources() {
 		wget -q ${_db_cached_results_pkg_furl}							# --
 	done;																# --
 	echo "Checksum OK !!"												# --
-	# post
-	$_db_cached_results_pkg__build_get_sources_post_hooks
+	$_db_cached_results_pkg_post_hooks
+	echo "${FUNCNAME[0]}(${pkg_id}) succeeded."
 	return 0;
 }
 function __build_add_structure() {
-	echo "__build_add_structure(package_id)"
+	echo "${FUNCNAME[0]}(${pkg_id})"
 	
-	_db_cached_results_pkg_furl=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT furl FROM pkgs WHERE id=${1}"`
-	_db_cached_results_pkg__build_add_structure_pre_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_add_structure_pre_hooks FROM pkgs WHERE id=${1}"`
-	_db_cached_results_pkg__build_add_structure_post_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_add_structure_post_hooks FROM pkgs WHERE id=${1}"`
+	_db_cached_results_pkg_furl=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT furl FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg__build_add_structure_pre_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_add_structure_pre_hooks FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg__build_add_structure_post_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_add_structure_post_hooks FROM pkgs WHERE id=${pkg_id}"`
 	
 	$_db_cached_results_pkg__build_add_structure_pre_hooks
 	
@@ -90,67 +102,107 @@ function __build_add_structure() {
 	if [ $? -eq 0 ]; then
 		return 0
 	fi
-	echo "__build_add_structure(${pkg_id}) failed"
+	echo "${FUNCNAME[0]}(${pkg_id}) failed."
 	return -1
 }
 function __build_configure() {
-	echo "__build_configure(package_id)";
-	_db_cached_results_pkg_pkg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT pkg FROM pkgs WHERE id=${1}"`
-	_db_cached_results_pkg_ver=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT ver FROM pkgs WHERE id=${1}"`
-	_db_cached_results_pkg_rev=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT rev FROM pkgs WHERE id=${1}"`
-	_db_cached_results_pkg_cfg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT cfg FROM pkgs WHERE id=${1}"`
-	_db_cached_results_pkg_furl=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT furl FROM pkgs WHERE id=${1}"`
+	echo "${FUNCNAME[0]}(${pkg_id})"
+	
+	_db_cached_results_pkg_pkg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT pkg FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_ver=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT ver FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_rev=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT rev FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_cfg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT cfg FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_furl=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT furl FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_pre_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_configure_pre_hooks FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_post_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_configure_post_hooks FROM pkgs WHERE id=${pkg_id}"`
 	_pkg_name="${_db_cached_results_pkg_pkg} (${_db_cached_results_pkg_ver}r${_db_cached_results_pkg_rev})"
 
-	# pre-hooks
-
+	$_db_cached_results_pkg_pre_hooks
 	# main-hooks
 	echo "Configuring ${_pkg_name}.."
-	CFLAGS="${CFLAGS}" CXXFLAGS="${CFLAGS}" ../configure $_db_cached_results_pkg_cfg
+	_db_cached_results_pkg_cfg_respect_cflags=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT cfg_respect_user_optimization FROM pkgs WHERE id=${pkg_id}"`
+	if [ $_db_cached_results_pkg_cfg_respect_cflags == 0 ]; then
+		../configure $_db_cached_results_pkg_cfg
+	else
+		CFLAGS="${CFLAGS}" CXXFLAGS="${CFLAGS}" ../configure $_db_cached_results_pkg_cfg
+	fi
 	if [ $? -eq 0 ]; then
-		# post-hooks
+		$_db_cached_results_pkg_post_hooks
 		return 0
 	fi
-    echo "__build_configure(${1}) failed!"
+    echo "${FUNCNAME[0]}(${pkg_id}) failed."
 	return -1;
 }
 function __build_make() {
-	echo "__build_make(package_id)";
+	echo "${FUNCNAME[0]}(${pkg_id}) failed."
 	# pre-hooks
 	# main-hooks
-	CFLAGS="${CFLAGS}" CXXFLAGS="${CFLAGS}" make ${MAKEOPTS}
+	_db_cached_results_pkg_pre_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_make_pre_hooks FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_post_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_make_post_hooks FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_cfg_respect_cflags=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT cfg_respect_user_optimization FROM pkgs WHERE id=${pkg_id}"`
+	
+	$_db_cached_results_pkg_pre_hooks
+	
+	if [ $_db_cached_results_pkg_cfg_respect_cflags == 0 ]; then
+		make -j1
+	else
+		CFLAGS="${CFLAGS}" CXXFLAGS="${CFLAGS}" make ${MAKEOPTS}
+	fi
 	if [ $? -eq 0 ]; then
-		# post-hooks
+		$_db_cached_results_pkg_post_hooks
 		return 0
 	fi
-    echo "__build_check(${1}) failed!"
+    echo "${FUNCNAME[0]}(${pkg_id}) failed."
 	# post-hooks
 	return -1
 }
 function __build_check() {
-	echo "__build_check(package_id)";
+	echo "${FUNCNAME[0]}(${pkg_id})"
 	# pre-hooks
-	make ${MAKEOPTS} check
+	_db_cached_results_pkg_pre_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_check_pre_hooks FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_post_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_check_post_hooks FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_cfg_respect_cflags=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT cfg_respect_user_optimization FROM pkgs WHERE id=${pkg_id}"`
+	
+	$_db_cached_results_pkg_pre_hooks
+	
+	if [ $_db_cached_results_pkg_cfg_respect_cflags == 0 ]; then
+		make -j1 check
+	else
+		CFLAGS="${CFLAGS}" CXXFLAGS="${CFLAGS}" make ${MAKEOPTS} check
+	fi
 	if [ $? -eq 0 ]; then
-		# post-hooks
+		$_db_cached_results_pkg_post_hooks
 		return 0
 	fi
-    echo "__build_check(${1}) failed!"
+    echo "${FUNCNAME[0]}(${pkg_id}) failed."
 	return -1
 }
 function __build_install() {
-	echo "__build_install(package_id)";
-	# pre-hooks
+	echo "${FUNCNAME[0]}(${pkg_id})"
+	
+	_db_cached_results_pkg_pre_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_install_pre_hooks FROM pkgs WHERE id=${pkg_id}"`
+	_db_cached_results_pkg_post_hooks=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT __build_install_post_hooks FROM pkgs WHERE id=${pkg_id}"`
+
+	_aux_root_check
+	
+	_db_cached_results_pkg_furl=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT furl FROM pkgs WHERE id=${pkg_id}"`
+	_pkg_packagename=$(basename "$_db_cached_results_pkg_furl")
+	_pkg_foldername="${_pkg_packagename%.*.*}"
+	cd /tmp/halogen && cd ${_pkg_foldername}/build
+	
+	$_db_cached_results_pkg_pre_hooks
+	
 	make install
 	if [ $? -eq 0 ]; then
-		# post-hooks
-		return 0
+		$_db_cached_results_pkg_post_hooks
+		return 0;
 	fi
-    echo "__build_install(${1}) failed!"
-	return -1
+	
+	echo "${FUNCNAME[0]}(${pkg_id}) failed!"
+	exit -1;
 }
 function __build_sanitize_structure() {
-	echo "__build_del_structure(package_id)"
+	echo "${FUNCNAME[0]}(${pkg_id})"
 	
 	_db_cached_results_pkg_furl=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT furl FROM pkgs WHERE id=${1}"`
 	
@@ -158,6 +210,7 @@ function __build_sanitize_structure() {
 	_pkg_foldername="${_pkg_packagename%.*.*}"
 	
 	cd /tmp/halogen && rm -Rf ${_pkg_foldername}
+	echo "${FUNCNAME[0]}(${pkg_id}) succeeded."
 	return 0;
 }
 export -f __build_get_sources
@@ -168,55 +221,54 @@ export -f __build_check
 #
 # build; with databases; configure and build
 #
+# return value = pkg_id
+#	-1 = usermode build failed
+#	 0 = usermode build succeeded
+#	 1 = usermode build package already installed
 function _build_package {
-	echo "_build_package ID = ${pkg_id}";
+	echo "${FUNCNAME[0]}(${pkg_id})"
 	
 	_db_cached_results_pkg_pkg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT pkg FROM pkgs WHERE id=${pkg_id}"`
 	_db_cached_results_pkg_ver=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT ver FROM pkgs WHERE id=${pkg_id}"`
 	_db_cached_results_pkg_rev=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT rev FROM pkgs WHERE id=${pkg_id}"`
 	_pkg_name="${_db_cached_results_pkg_pkg} (${_db_cached_results_pkg_ver}r${_db_cached_results_pkg_rev})"
 
+	export usermode_build_succeeded=0
+	
 	cd ${TMP_PATH}
 	
-	_db_cached_results_is_installed=`sqlite3 /var/lib/halogen/sqlite.local "SELECT count(*), * FROM pkgs WHERE pkg='${_db_cached_results_pkg_pkg}' AND ver='${_db_cached_results_pkg_ver}' AND rev='${_db_cached_results_pkg_rev}'"`
-	if [[ $(echo ${_db_cached_results_is_installed} | awk '{split($0,a,"|"); print a[1]}') != "0" ]]; then
-		echo "${_pkg_name} is already installed. rolling on.."
-		export pkg_id=-1
-	fi
-	if [[ $(__build_get_sources ${pkg_id}) == -1 ]]; then
-		export pkg_id=-1
-		return -1;
-	fi
-	if [[ $(__build_add_structure ${pkg_id}) == -1 ]]; then
-		export pkg_id=-1
-		return -1;
-	fi
-	if [[ $(__build_configure ${pkg_id}) == -1 ]]; then
-		export pkg_id=-1
-		return -1;
-	fi
-	if [[ $(__build_make ${pkg_id}) == -1 ]]; then
-		export pkg_id=-1
-		return -1;
-	fi
-	if [[ $(__build_check ${pkg_id}) == -1 ]]; then
-		export pkg_id=-1
-		return -1;
-	fi
-	return 0;
+	__build_get_sources ${pkg_id}
+	if [ $? -ne 0 ]; then _aux_set_package_sanity -1; fi
+	__build_add_structure ${pkg_id}
+	if [ $? -ne 0 ]; then _aux_set_package_sanity -1; fi
+	__build_configure ${pkg_id}
+	if [ $? -ne 0 ]; then _aux_set_package_sanity -1; fi
+	__build_make ${pkg_id}
+	if [ $? -ne 0 ]; then _aux_set_package_sanity -1; fi
+	__build_check ${pkg_id}
+	if [ $? -ne 0 ]; then _aux_set_package_sanity -1; fi
+
+	echo "${FUNCNAME[0]}(${pkg_id}) succeeded."
+	
+	export usermode_build_succeeded=1
+	
+	exit 0;
 }
 
 export -f _build_package
 function _build_package_root {
+	echo "${FUNCNAME[0]}(package_id)"
 	__build_install ${pkg_id}
 	__build_sanitize_structure ${pkg_id}
+	echo "${FUNCNAME[0]}(package_id) succeeded."
 	return 0;
 }
 #
 # simple build; without databases; in already configured build folder
 #
 function __build_package_simple {
-	#
+	echo "${FUNCNAME[0]}(null)"
+	
 	__build_make -1
 	__build_check -1
 	__build_install -1
@@ -242,6 +294,7 @@ function _lfs_fetch_gcc_dependancies {
 	return -1;
 }
 function _lfs_check_bootstrap_environment {
+	echo "${FUNCNAME[0]}(null)"
 	# toolchain check
 	export LC_ALL=C
 	bash --version | head -n1 | cut -d" " -f2-4
@@ -332,6 +385,7 @@ function _lfs_prepare_disks {
 	echo "halogen bootstrap-internal-one"				#
 }
 function _lfs_prepare_user {
+	echo "${FUNCNAME[0]}(null)"
 	while true; do
 		read -p "Install default .bashrc and .bash_profile for use lfs?" yn
 		case $yn in
@@ -344,59 +398,63 @@ function _lfs_prepare_user {
 	rm /home/lfs/.bash_profile
 	cp -f /tmp/halogen/.bashrc /home/lfs/.bashrc
 	cp -f /tmp/halogen/.bash_profile /home/lfs/.bash_profile
-	export MAKEFLAGS="-j5"
+	ln -s /usr/lib/x86_64-linux-gnu /usr/lib64
 	return 1;
 }
-function _lfs_bootstrap_internal_one {
-	echo "_lfs_bootstrap_internal_one(null)"
+function _bootstrap_lfs_user {
+	echo "${FUNCNAME[0]}(null)"
 	_aux_remote_db_touch;
 	
 	_db_cached_results_pkg_id=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT id FROM pkgs WHERE 1 ORDER BY id ASC"`
 
-	for pkg_id in $_db_cached_results_pkg_id; do
+	for package_id in $_db_cached_results_pkg_id; do
+		export pkg_id=${package_id}
+		
 		if [ -z "$pkg_id" ]; then
 			echo "Halogen package manager is complete!"
 			exit 0
 		fi
 		
-		export pkg_id=${pkg_id}
-		
 		_db_cached_results_pkg_pkg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT pkg FROM pkgs WHERE id=${pkg_id}"`
 		_db_cached_results_pkg_ver=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT ver FROM pkgs WHERE id=${pkg_id}"`
 		_db_cached_results_pkg_rev=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT rev FROM pkgs WHERE id=${pkg_id}"`
 		_db_cached_results_pkg_cfg=`sqlite3 /var/lib/halogen/sqlite.remote "SELECT cfg FROM pkgs WHERE id=${pkg_id}"`
+		_db_cached_results_is_installed=`sqlite3 /var/lib/halogen/sqlite.local "SELECT count(*), * FROM pkgs WHERE pkg='${_db_cached_results_pkg_pkg}' AND ver='${_db_cached_results_pkg_ver}' AND rev='${_db_cached_results_pkg_rev}'"`
+
+		_pkg_name="${_db_cached_results_pkg_pkg} ($_db_cached_results_pkg_ver-r${_db_cached_results_pkg_rev})"
+		echo "${FUNCNAME[0]}(null) working on ${_pkg_name} id=${pkg_id}.."
 		
-		echo {$_db_cached_results_pkg_pkg,$_db_cached_results_pkg_ver,$_db_cached_results_pkg_rev,$_db_cached_results_pkg_cfg}
-		
-		su lfs -c '_build_package $((${pkg_id})))'	# download, hash, fold, configure, build and check as normal user
-		if [ $? -eq 0 ]; then
-			exit 1
+		if [[ $(echo ${_db_cached_results_is_installed} | awk '{split($0,a,"|"); print a[1]}') != "0" ]]; then
+			echo "${_pkg_name} is already installed. rolling on.."
+			continue;
 		fi
-		if [[ ${pkg_id} == -1 ]]; then
-			echo "usermode build failed!"
-			exit 1
-		fi
-		_build_package_root ${pkg_id}
 		
-		sqlite3 /var/lib/halogen/sqlite.local "INSERT INTO pkgs (pkg, ver, rev) VALUES ('${_db_cached_results_pkg_pkg}', '${_db_cached_results_pkg_ver}', '${_db_cached_results_pkg_rev}')"
+		su lfs -c '_build_package'		# download, hash, fold, configure, build and check as normal user
+		if [ ${usermode_build_succeeded} -ne 1 ]; then echo "For some reason _build_package was succesful but usermode_build_succeeded=${usermode_build_succeeded}" && exit -1; fi
+		_build_package_root				# install and sanitize as root because I'm lazy..
+		echo "_build_package_root rv = $?"
+		if [ $? -ne 0 ]; then echo "NOT EQUAL 0!! HALT!!" && exit -1; fi
+		sqlite3 /var/lib/halogen/sqlite.local "INSERT INTO pkgs (pkg, ver, rev) VALUES ('${_db_cached_results_pkg_pkg}', '${_db_cached_results_pkg_ver}', '${_db_cached_results_pkg_rev}')"	# mark installed
 	done
 	return 0;
 }
-case $1 in
+case ${1} in
   update)
-	if [ "$EUID" -ne 0 ]; then
-	   echo "please run halogen update as root"
-	   exit
-	fi
-	echo "Updating scripts .. (does not work)"
-	# wget -q -O /usr/local/bin/halogen https://raw.githubusercontent.com/nafac/halogen/master/usr/local/bin/halogen
+	_aux_root_check ${1}
+	echo "halogen update does not work .."
+#	echo "Updating scripts .."
+#	wget -q -O /usr/local/bin/halogen https://raw.githubusercontent.com/nafac/halogen/master/usr/local/bin/halogen
+	echo "Enforcing directory structure and permissions.."
 	chmod +x /usr/local/bin/halogen
 	mkdir /var/lib/halogen &> /dev/null
-	chmod -R 1777 /var/lib/halogen
-	echo "Updating package database .. (does not work)"
-	# wget -q -O  /var/lib/halogen/sqlite.remote https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote
-    exit ;;
+	mkdir /tmp/halogen &> /dev/null
+	chmod -R 1777 /var/lib/halogen &> /dev/null
+	chmod -R 1777 /tmp/halogen &> /dev/null
+#	echo "Updating package databases .."
+#	wget -q -O  /var/lib/halogen/sqlite.remote https://github.com/nafac/halogen/raw/master/var/lib/halogen/sqlite.remote
+    exit 0;;
 #  bootstrap-update-host-toolchain)
+#	_aux_root_check ${1}
 #	echo "downloading binutils and dependancies.."
 #	cd /tmp/halogen
 #	wget -q -N https://ftp.gnu.org/gnu/binutils/binutils-2.26.1.tar.gz
@@ -441,18 +499,15 @@ case $1 in
 #		exit 1
 #	fi
 #	exit ;;
-  bootstrap) 
+  bootstrap-lfs) 
+	_aux_root_check ${1}
 	_lfs_check_bootstrap_environment;
 	_lfs_prepare_disks;
 	_lfs_prepare_user;
 	exit ;;
-  bootstrap-internal-one) 
-  	if [ "$EUID" -ne 0 ]; then
-	   echo "please run halogen bootstrap-internal-one as root"
-	   echo "download, build and check will always be executed as user 'lfs'"
-	   exit
-	fi
-	_lfs_bootstrap_internal_one;
+  bootstrap-lfs-user) 
+	_aux_root_check ${1}
+	_bootstrap_lfs_user;
 	exit ;;
   build-base)
     # query="SELECT * FROM packages_base WHERE 1"
