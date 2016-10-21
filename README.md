@@ -8,7 +8,7 @@ the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
 # HalogenOS
-Halogen is a halogen package manager based GNU/Linux distribution and build environment for terminals, servers and desktops.
+HalogenOS is a halogen package manager based GNU/Linux distribution and build environment for terminals, servers and desktops.
 
 # HalogenOS variants
 * HalogenOS Generic
@@ -16,7 +16,7 @@ Halogen is a halogen package manager based GNU/Linux distribution and build envi
 * HalogenOS AMD64 HPC
 
 # HalogenOS "webox"
-HalogenOS based WebGL GNU/Linux openbox replica
+webox is a HalogenOS based WebGL GNU/Linux openbox replica.
 
 changes
 * 2016-10-21 halogen-alpha2 "debianize" tagged
