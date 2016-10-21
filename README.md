@@ -6,8 +6,8 @@ halogen package manager based linux distribution and build environment for termi
 * HalogenOS Generic
 * HalogenOS Cloud
 * HalogenOS AMD64 HPC
+# HalogenOS "WeBox"
+* HalogenOS based WebGL GNU/Linux openbox replica experience
 
-
-
-## changes
+changes
 * 2016-10-21 halogen-alpha2 "debianize" tagged
