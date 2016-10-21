@@ -1,5 +1,11 @@
 # halogen
-halogen is a simple source based package manager written in bash
+halogen is a simple source based package and bootstrap manager written in bash
+# HalogenOS
+halogen based linux distribution and build environment
+# HalogenOS variants
+* HalogenOS Terminal for Desktops and Servers
+* HalogenOS AMD64 HPC
+* HalogenOS Cloud
 
 changes
 
