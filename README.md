@@ -1,11 +1,12 @@
 # halogen
 halogen is a simple source based package and bootstrap manager written in bash
-# halogen - HalogenOS
+# HalogenOS
 halogen based linux distribution and build environment for terminal, server and desktop
-# halogen - HalogenOS - variants
-* HalogenOS Generic
+# HalogenOS - Variants
+* HalogenOSGeneric
 * HalogenOS Cloud
 * HalogenOS AMD64 HPC
 
 
+# CHANGES
 * 2016-10-21 halogen-alpha2 "debianize" tagged
