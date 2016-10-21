@@ -8,5 +8,6 @@ halogen package manager based linux distribution and build environment for termi
 * HalogenOS AMD64 HPC
 
 
-* changes
-** 2016-10-21 halogen-alpha2 "debianize" tagged
+
+## changes
+* 2016-10-21 halogen-alpha2 "debianize" tagged
