@@ -19,11 +19,12 @@ source /etc/halogen.conf
 
 # definations
 BUILD_FLAGS='CFLAGS="${CFLAGS}" CXXFLAGS="${CXXFLAGS}" LDFLAGS="${LDFLAGS}"'
-# definations; cached queries
+# definations; query cache
 function __db_cached_results_pkg {
 	rv=$(sqlite3 ${1} "${2/DEF_PACKAGE_ID/${pkg_id}}") && echo "${FUNCNAME[0]}('${1}', '${2}') rv='${rv}'"
 	if [ $? -ne 0 ]; then echo "query failed!" && _aux_set_package_sanity -1 && exit 1; else return ${rv}; fi
 }
+# definations; query templates
 function __db_cached_results_pkg_pkgs { return $(__db_cached_results_pkg ${REMOTE_DB} "SELECT id FROM packages WHERE 1 ORDER BY id ASC") }
 function __db_cached_results_pkg_pkg { return $(__db_cached_results_pkg ${REMOTE_DB} "SELECT pkg FROM packages WHERE id=DEF_PACKAGE_ID") }
 function __db_cached_results_pkg_ver { return $(__db_cached_results_pkg ${REMOTE_DB} "SELECT ver FROM packages WHERE id=DEF_PACKAGE_ID") }
@@ -33,11 +34,15 @@ function __db_cached_results_pkg_furl { return $(__db_cached_results_pkg ${REMOT
 function __db_cached_results_pkg_hash { return $(__db_cached_results_pkg ${REMOTE_DB} "SELECT hash FROM packages WHERE id=DEF_PACKAGE_ID") }
 function __db_cached_results_pkg_get_pre_hooks { return $(__db_cached_results_pkg ${REMOTE_DB} "SELECT __build_get_sources_pre_hooks FROM packages WHERE id=DEF_PACKAGE_ID") }
 function __db_cached_results_pkg_get_post_hooks { return $(__db_cached_results_pkg ${REMOTE_DB} "SELECT __build_get_sources_pre_hooks FROM packages WHERE id=DEF_PACKAGE_ID") }
+# definations; little more special stuff
+function __db_cached_results_is_installed {	if [[ $(echo $(__db_cached_results ${LOCAL_DB} "SELECT count(*), * FROM packages WHERE pkg='$(__db_cached_results_pkg_pkg)' AND ver='$(__db_cached_results_pkg_ver)' AND rev='$(__db_cached_results_pkg_rev)'") | awk '{split($0,a,"|"); print a[1]}') != "0" ]]; then return 1; else return 0; fi }
+function __db_cached_results_mark_installed { $(__db_cached_results ${LOCAL_DB} "INERT INTO packages (pkg, ver, rev) VALUES ('$(__db_cached_results_pkg_pkg)', '$(__db_cached_results_pkg_ver)', '$(__db_cached_results_pkg_rev)')") && return 1; }
 
-function __db_cached_results_is_installed {	if [[ $(echo $(__db_cached_results ${LOCAL_DB} "SELECT count(*), * FROM packages WHERE pkg='${1}' AND ver='${2}' AND rev='${3}'") | awk '{split($0,a,"|"); print a[1]}') != "0" ]]; then return 1; else return 0; fi }
-
-mkdir $TMP_PATH &> /dev/null
-cd $TMP_PATH
+if [ ! -d "${TMP_PATH}" ]; then
+	echo "${TMP_PATH} folder not found; please run make install."
+	exit -1
+fi
+cd ${TMP_PATH}
 
 function _aux_root_check {
   	if [ "$EUID" -ne 0 ]; then
@@ -435,14 +440,14 @@ function _bootstrap_lfs_user {
 		_pkg_name="$(__db_cached_results_pkg_pkg) ($_db_cached_results_pkg_ver-r$(__db_cached_results_pkg_rev))"
 		echo "${FUNCNAME[0]}(${1}) working on ${_pkg_name} id=${pkg_id}.."
 		
-		if [[ $(__db_cached_results_is_installed $(__db_cached_results_pkg_pkg) $(__db_cached_results_pkg_ver) $(__db_cached_results_pkg_rev)) == 1 ]]; then echo "package is already installed, rolling on.." && continue; fi
+		if [[ $(__db_cached_results_is_installed ${pkg_id}) == 1 ]]; then echo "package is already installed, rolling on.." && continue; fi
 		
 		su lfs -c '_build_package'		# download, hash, fold, configure, build and check as normal user
 		if [ ${usermode_build_succeeded} -ne 1 ]; then echo "For some reason _build_package was succesful but usermode_build_succeeded=${usermode_build_succeeded}" && exit -1; fi
 		_build_package_root				# install and sanitize as root because I'm lazy..
 		echo "_build_package_root rv = $?"
 		if [ $? -ne 0 ]; then echo "NOT EQUAL 0!! HALT!!" && exit -1; fi
-		sqlite3 /var/lib/halogen/sqlite.local "INSERT INTO pkgs (pkg, ver, rev) VALUES ('$(__db_cached_results_pkg_pkg)', '$(__db_cached_results_pkg_ver)', '$(__db_cached_results_pkg_rev)')"	# mark installed
+		$(__db_cached_results_mark_installed ${pkg_id})
 	done
 	return 0;
 }
