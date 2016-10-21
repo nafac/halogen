@@ -1,6 +1,9 @@
 # halogen
 halogen is a simple source based package and bootstrap manager written in bash
 
+# halogen changes
+* 2016-10-21 halogen-alpha2 "debianize" tagged
+
 # halogen license
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,6 +20,3 @@ HalogenOS is a halogen package manager based GNU/Linux distribution and build en
 
 # HalogenOS "webox"
 webox is a HalogenOS based WebGL GNU/Linux openbox replica.
-
-changes
-* 2016-10-21 halogen-alpha2 "debianize" tagged
