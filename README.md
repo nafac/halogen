@@ -1,17 +1,17 @@
 # halogen
-halogen is a simple source based package and bootstrap manager written in bash
+* halogen is a simple source based package and bootstrap manager written in bash
 
 # halogen changes
 * 2016-10-21 halogen-alpha2 "debianize" tagged
 
 # halogen license
-This program is free software: you can redistribute it and/or modify
+* This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
 # HalogenOS
-HalogenOS is a halogen package manager based GNU/Linux distribution and build environment for terminals, servers and desktops.
+* HalogenOS is a halogen package manager based GNU/Linux distribution and build environment for terminals, servers and desktops.
 
 # HalogenOS variants
 * HalogenOS Generic
@@ -19,4 +19,4 @@ HalogenOS is a halogen package manager based GNU/Linux distribution and build en
 * HalogenOS AMD64 HPC
 
 # HalogenOS "webox"
-webox is a HalogenOS based WebGL GNU/Linux openbox replica.
+* webox is a HalogenOS based WebGL GNU/Linux openbox replica.
